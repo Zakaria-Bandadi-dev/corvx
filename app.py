@@ -1437,7 +1437,8 @@ HTML_TEMPLATE = """
             </h2>
 
             <p>
-                The robot is generating the first articles.
+                
+                
                 Refresh the page in a moment.
             </p>
 
