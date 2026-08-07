@@ -1,18 +1,19 @@
+````python
 import os
-import re
 import json
 import time
 import random
-import sqlite3
 import urllib.parse
+import urllib.request
+import sqlite3
 import threading
-from datetime import datetime
 
 import feedparser
 import psycopg
-from flask import Flask, request, render_template_string, abort
-from groq import Groq
+from flask import Flask, request, render_template_string, redirect, url_for
 from apscheduler.schedulers.background import BackgroundScheduler
+from groq import Groq
+from datetime import datetime
 
 
 # ============================================================
@@ -26,15 +27,12 @@ app = Flask(__name__)
 # CONFIGURATION
 # ============================================================
 
-PORT = int(os.getenv("PORT", "5000"))
-
-# Supabase / Railway PostgreSQL
-DB_URL = os.getenv("DATABASE_URL", "").strip()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # ------------------------------------------------------------
-# GROQ API KEYS
+# Groq API keys
 #
-# Railway variables can be:
+# Railway variables:
 #
 # GROQ_API_KEY
 # OR
@@ -47,150 +45,119 @@ DB_URL = os.getenv("DATABASE_URL", "").strip()
 
 GROQ_KEYS = []
 
-single_key = os.getenv("GROQ_API_KEY")
-if single_key:
-    GROQ_KEYS.append(single_key)
-
 for i in range(1, 6):
     key = os.getenv(f"GROQ_API_KEY{i}")
-    if key and key not in GROQ_KEYS:
+    if key:
         GROQ_KEYS.append(key)
 
-# Current recommended production model on Groq
+# Support also simple GROQ_API_KEY
+simple_key = os.getenv("GROQ_API_KEY")
+
+if simple_key and simple_key not in GROQ_KEYS:
+    GROQ_KEYS.insert(0, simple_key)
+
+CURRENT_GROQ_KEY = 0
+
+# Model
 GROQ_MODEL = os.getenv(
     "GROQ_MODEL",
-    "openai/gpt-oss-120b"
+    "llama-3.3-70b-versatile"
 )
 
-current_key_index = 0
-key_lock = threading.Lock()
-
 
 # ============================================================
-# REGIONS
+# COUNTRIES
 # ============================================================
 
-REGIONS = {
-
-    "morocco": {
-        "name": {
-            "ar": "المغرب",
-            "fr": "Maroc",
-            "en": "Morocco",
-            "es": "Marruecos"
-        },
-        "default_lang": "ar",
-        "countries": ["Morocco"],
-        "google_news": [
-            "Morocco",
-            "Morocco politics",
-            "Morocco economy",
-            "Morocco business",
-            "Morocco technology",
-            "Morocco sports",
-            "Morocco science"
-        ]
+COUNTRIES = {
+    "MA": {
+        "name": "Morocco",
+        "ar": "المغرب",
+        "fr": "Maroc",
+        "en": "Morocco",
+        "es": "Marruecos",
+        "news": "MA"
     },
 
-    "global": {
-        "name": {
-            "ar": "العالم",
-            "fr": "Monde",
-            "en": "Global",
-            "es": "Mundo"
-        },
-        "default_lang": "en",
-        "countries": ["World"],
-        "google_news": [
-            "World",
-            "World politics",
-            "World economy",
-            "World business",
-            "World technology",
-            "World science",
-            "World sports"
-        ]
+    "FR": {
+        "name": "France",
+        "ar": "فرنسا",
+        "fr": "France",
+        "en": "France",
+        "es": "Francia",
+        "news": "FR"
     },
 
-    "usa": {
-        "name": {
-            "ar": "أمريكا",
-            "fr": "USA",
-            "en": "USA",
-            "es": "EE.UU.",
-        },
-        "default_lang": "en",
-        "countries": ["United States"],
-        "google_news": [
-            "United States",
-            "USA politics",
-            "USA economy",
-            "USA technology",
-            "USA business",
-            "USA sports",
-            "USA science"
-        ]
+    "ES": {
+        "name": "Spain",
+        "ar": "إسبانيا",
+        "fr": "Espagne",
+        "en": "Spain",
+        "es": "España",
+        "news": "ES"
     },
 
-    "europe": {
-        "name": {
-            "ar": "أوروبا",
-            "fr": "Europe",
-            "en": "Europe",
-            "es": "Europa"
-        },
-        "default_lang": "fr",
-        "countries": ["Europe"],
-        "google_news": [
-            "Europe",
-            "Europe politics",
-            "Europe economy",
-            "Europe business",
-            "Europe technology",
-            "Europe science",
-            "Europe sports"
-        ]
+    "US": {
+        "name": "United States",
+        "ar": "الولايات المتحدة",
+        "fr": "États-Unis",
+        "en": "United States",
+        "es": "Estados Unidos",
+        "news": "US"
     },
 
-    "africa": {
-        "name": {
-            "ar": "إفريقيا",
-            "fr": "Afrique",
-            "en": "Africa",
-            "es": "África"
-        },
-        "default_lang": "fr",
-        "countries": ["Africa"],
-        "google_news": [
-            "Africa",
-            "Africa politics",
-            "Africa economy",
-            "Africa business",
-            "Africa technology",
-            "Africa science",
-            "Africa sports"
-        ]
+    "GB": {
+        "name": "United Kingdom",
+        "ar": "المملكة المتحدة",
+        "fr": "Royaume-Uni",
+        "en": "United Kingdom",
+        "es": "Reino Unido",
+        "news": "GB"
     },
 
-    "gulf": {
-        "name": {
-            "ar": "الخليج",
-            "fr": "Golfe",
-            "en": "Gulf",
-            "es": "Golfo"
-        },
-        "default_lang": "ar",
-        "countries": ["Gulf"],
-        "google_news": [
-            "Gulf countries",
-            "Saudi Arabia",
-            "UAE",
-            "Qatar",
-            "Gulf economy",
-            "Gulf business",
-            "Gulf technology",
-            "Gulf sports"
-        ]
+    "CA": {
+        "name": "Canada",
+        "ar": "كندا",
+        "fr": "Canada",
+        "en": "Canada",
+        "es": "Canadá",
+        "news": "CA"
+    },
+
+    "DE": {
+        "name": "Germany",
+        "ar": "ألمانيا",
+        "fr": "Allemagne",
+        "en": "Germany",
+        "es": "Alemania",
+        "news": "DE"
+    },
+
+    "IT": {
+        "name": "Italy",
+        "ar": "إيطاليا",
+        "fr": "Italie",
+        "en": "Italy",
+        "es": "Italia",
+        "news": "IT"
+    },
+
+    "SA": {
+        "name": "Saudi Arabia",
+        "ar": "السعودية",
+        "fr": "Arabie saoudite",
+        "en": "Saudi Arabia",
+        "es": "Arabia Saudita",
+        "news": "SA"
+    },
+
+    "AE": {
+        "name": "United Arab Emirates",
+        "ar": "الإمارات",
+        "fr": "Émirats arabes unis",
+        "en": "United Arab Emirates",
+        "es": "Emiratos Árabes Unidos",
+        "news": "AE"
     }
 }
 
@@ -203,32 +170,15 @@ LANGUAGES = {
 }
 
 
-CATEGORIES = [
-    "politics",
-    "economy",
-    "business",
-    "technology",
-    "science",
-    "sports",
-    "health",
-    "world",
-    "society",
-    "culture"
-]
-
-
 # ============================================================
 # DATABASE
 # ============================================================
 
 def get_db_connection():
 
-    if DB_URL:
+    if DATABASE_URL:
 
-        return psycopg.connect(
-            DB_URL,
-            connect_timeout=15
-        )
+        return psycopg.connect(DATABASE_URL)
 
     conn = sqlite3.connect(
         "corvex.db",
@@ -240,178 +190,82 @@ def get_db_connection():
     return conn
 
 
-def column_exists(cur, table_name, column_name):
-
-    if DB_URL:
-
-        cur.execute(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_name = %s
-                AND column_name = %s
-            )
-            """,
-            (table_name, column_name)
-        )
-
-        return cur.fetchone()[0]
-
-    else:
-
-        cur.execute(
-            f"PRAGMA table_info({table_name})"
-        )
-
-        columns = [
-            row[1]
-            for row in cur.fetchall()
-        ]
-
-        return column_name in columns
-
-
-def add_column_if_missing(
-    cur,
-    column_name,
-    column_type
-):
-
-    if not column_exists(
-        cur,
-        "articles",
-        column_name
-    ):
-
-        cur.execute(
-            f"""
-            ALTER TABLE articles
-            ADD COLUMN {column_name} {column_type}
-            """
-        )
-
-
 def init_db():
 
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
-        if DB_URL:
+        if DATABASE_URL:
 
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS articles (
+            query = """
+            CREATE TABLE IF NOT EXISTS articles (
 
-                    id SERIAL PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
 
-                    region TEXT,
-                    category TEXT,
+                country TEXT NOT NULL,
 
-                    title_ar TEXT,
-                    title_fr TEXT,
-                    title_en TEXT,
-                    title_es TEXT,
+                category TEXT,
 
-                    content_ar TEXT,
-                    content_fr TEXT,
-                    content_en TEXT,
-                    content_es TEXT,
+                source_title TEXT,
 
-                    image_url TEXT,
+                source_url TEXT,
 
-                    source_url TEXT,
-                    source_name TEXT,
+                image_url TEXT,
 
-                    created_at TIMESTAMP
-                        DEFAULT CURRENT_TIMESTAMP
+                title_ar TEXT,
+                title_fr TEXT,
+                title_en TEXT,
+                title_es TEXT,
 
-                )
-                """
-            )
+                content_ar TEXT,
+                content_fr TEXT,
+                content_en TEXT,
+                content_es TEXT,
+
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+            );
+            """
 
         else:
 
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS articles (
+            query = """
+            CREATE TABLE IF NOT EXISTS articles (
 
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-                    region TEXT,
-                    category TEXT,
+                country TEXT NOT NULL,
 
-                    title_ar TEXT,
-                    title_fr TEXT,
-                    title_en TEXT,
-                    title_es TEXT,
+                category TEXT,
 
-                    content_ar TEXT,
-                    content_fr TEXT,
-                    content_en TEXT,
-                    content_es TEXT,
+                source_title TEXT,
 
-                    image_url TEXT,
+                source_url TEXT,
 
-                    source_url TEXT,
-                    source_name TEXT,
+                image_url TEXT,
 
-                    created_at DATETIME
-                        DEFAULT CURRENT_TIMESTAMP
+                title_ar TEXT,
+                title_fr TEXT,
+                title_en TEXT,
+                title_es TEXT,
 
-                )
-                """
-            )
+                content_ar TEXT,
+                content_fr TEXT,
+                content_en TEXT,
+                content_es TEXT,
 
-        # ----------------------------------------------------
-        # Migration for old database
-        # ----------------------------------------------------
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 
-        add_column_if_missing(
-            cur,
-            "source_url",
-            "TEXT"
-        )
+            );
+            """
 
-        add_column_if_missing(
-            cur,
-            "source_name",
-            "TEXT"
-        )
-
-        # ----------------------------------------------------
-        # Indexes
-        # ----------------------------------------------------
-
-        try:
-
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS
-                idx_articles_region
-                ON articles(region)
-                """
-            )
-
-        except Exception:
-            pass
-
-        try:
-
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS
-                idx_articles_created
-                ON articles(created_at)
-                """
-            )
-
-        except Exception:
-            pass
+        cur.execute(query)
 
         conn.commit()
+
         conn.close()
 
         print("-> Database Ready")
@@ -419,12 +273,14 @@ def init_db():
     except Exception as e:
 
         print(
-            f"!! init_db failed: {e}"
+            f"!! Database initialization failed: {e}"
         )
 
 
 # IMPORTANT:
-# Gunicorn imports app.py, so initialize here.
+# Gunicorn imports app.py.
+# Therefore database initialization happens here.
+
 init_db()
 
 
@@ -432,92 +288,89 @@ init_db()
 # GROQ
 # ============================================================
 
-def get_next_groq_client():
+def get_groq_client():
 
-    global current_key_index
+    global CURRENT_GROQ_KEY
 
     if not GROQ_KEYS:
 
+        print("!! No GROQ API keys found")
+
         return None
 
-    with key_lock:
-
-        key = GROQ_KEYS[current_key_index]
-
-        current_key_index = (
-            current_key_index + 1
-        ) % len(GROQ_KEYS)
+    key = GROQ_KEYS[CURRENT_GROQ_KEY]
 
     return Groq(api_key=key)
 
 
-def ask_groq(
-    prompt,
-    temperature=0.4,
-    max_tokens=3000
-):
+def ask_groq(prompt):
+
+    global CURRENT_GROQ_KEY
 
     if not GROQ_KEYS:
 
-        print(
-            "!! No GROQ API KEY found"
-        )
-
         return None
 
-    attempts = len(GROQ_KEYS)
-
-    for attempt in range(attempts):
-
-        client = get_next_groq_client()
-
-        if client is None:
-            return None
+    for attempt in range(len(GROQ_KEYS)):
 
         try:
+
+            client = get_groq_client()
 
             response = client.chat.completions.create(
 
                 model=GROQ_MODEL,
 
                 messages=[
+
                     {
                         "role": "system",
-                        "content": (
-                            "You are a professional multilingual "
-                            "international news editor. "
-                            "Write factual, neutral, clear news content. "
-                            "Never invent specific facts, names, numbers "
-                            "or events that are not present in the source."
-                        )
+
+                        "content": """
+You are a professional international news editor.
+
+You must NEVER invent facts.
+
+Use ONLY the information contained in the provided source.
+
+Write a clear, neutral and informative article.
+
+The article can be about ANY category:
+politics, economy, business, technology,
+sports, science, health, entertainment,
+culture, society, environment, education,
+international affairs, local news, etc.
+
+Do not turn every story into a technology story.
+
+Return valid JSON when requested.
+"""
                     },
+
                     {
                         "role": "user",
                         "content": prompt
                     }
+
                 ],
 
-                temperature=temperature,
+                temperature=0.3,
 
-                max_completion_tokens=max_tokens
+                max_tokens=1800
 
             )
 
-            text = (
-                response
-                .choices[0]
-                .message
-                .content
-            )
-
-            if text:
-                return text.strip()
+            return response.choices[0].message.content
 
         except Exception as e:
 
             print(
-                f"!! Groq attempt {attempt + 1} failed: {e}"
+                f"!! Groq key #{CURRENT_GROQ_KEY + 1} failed: {e}"
             )
+
+            CURRENT_GROQ_KEY = (
+                CURRENT_GROQ_KEY + 1
+            ) % len(GROQ_KEYS)
 
             time.sleep(2)
 
@@ -528,95 +381,43 @@ def ask_groq(
 # GOOGLE NEWS RSS
 # ============================================================
 
-def google_news_rss(query):
+def get_country_news(country_code):
 
-    encoded = urllib.parse.quote_plus(
-        query
-    )
+    """
+    Get current news for a country using Google News RSS.
+
+    This is the important part:
+    the robot does NOT randomly invent topics.
+
+    It first gets real current news.
+    """
+
+    country = COUNTRIES.get(country_code)
+
+    if not country:
+        return []
+
+    google_country = country["news"]
 
     url = (
-        "https://news.google.com/rss/search?"
-        f"q={encoded}"
-        "&hl=en-US"
-        "&gl=US"
-        "&ceid=US:en"
+        "https://news.google.com/rss"
+        f"?hl=en-US&gl={google_country}"
+        "&ceid="
+        f"{google_country}:en"
     )
 
     try:
 
         feed = feedparser.parse(url)
 
-        return feed.entries
+        articles = []
 
-    except Exception as e:
+        for entry in feed.entries[:8]:
 
-        print(
-            f"!! RSS error: {e}"
-        )
-
-        return []
-
-
-# ============================================================
-# NEWS FETCHING
-# ============================================================
-
-def clean_text(text):
-
-    if not text:
-        return ""
-
-    text = re.sub(
-        r"<[^>]+>",
-        " ",
-        text
-    )
-
-    text = re.sub(
-        r"\s+",
-        " ",
-        text
-    )
-
-    return text.strip()
-
-
-def get_news_for_region(region):
-
-    config = REGIONS.get(
-        region,
-        REGIONS["morocco"]
-    )
-
-    all_articles = []
-
-    queries = config["google_news"]
-
-    # Shuffle so the robot doesn't always
-    # process the same category first.
-    queries = list(queries)
-    random.shuffle(queries)
-
-    for query in queries:
-
-        entries = google_news_rss(query)
-
-        for entry in entries[:5]:
-
-            title = clean_text(
-                getattr(
-                    entry,
-                    "title",
-                    ""
-                )
-            )
-
-            summary = clean_text(
-                getattr(
-                    entry,
-                    "summary",
-                    ""
-                )
+            title = getattr(
+                entry,
+                "title",
+                ""
             )
 
             link = getattr(
@@ -625,53 +426,225 @@ def get_news_for_region(region):
                 ""
             )
 
-            source_name = ""
-
-            if hasattr(entry, "source"):
-
-                try:
-                    source_name = (
-                        entry.source.title
-                    )
-                except Exception:
-                    pass
-
-            if not title or not link:
-                continue
-
-            all_articles.append(
-                {
-                    "title": title,
-                    "summary": summary,
-                    "url": link,
-                    "source": source_name
-                }
+            summary = getattr(
+                entry,
+                "summary",
+                ""
             )
 
-    # --------------------------------------------------------
-    # Remove duplicates by URL
-    # --------------------------------------------------------
+            if not title:
+                continue
 
-    unique = {}
+            articles.append({
 
-    for article in all_articles:
+                "title": title,
 
-        url = article["url"]
+                "url": link,
 
-        if url not in unique:
-            unique[url] = article
+                "summary": summary
 
-    articles = list(
-        unique.values()
-    )
+            })
 
-    random.shuffle(articles)
+        return articles
 
-    return articles
+    except Exception as e:
+
+        print(
+            f"!! News RSS failed for {country_code}: {e}"
+        )
+
+        return []
 
 
 # ============================================================
-# DUPLICATE CHECK
+# IMAGE
+# ============================================================
+
+def generate_image(prompt):
+
+    encoded = urllib.parse.quote(
+        prompt
+        + ", realistic professional news photography"
+    )
+
+    return (
+        "https://image.pollinations.ai/prompt/"
+        + encoded
+    )
+
+
+# ============================================================
+# GENERATE ARTICLE
+# ============================================================
+
+def generate_article(country_code, source):
+
+    country = COUNTRIES[country_code]
+
+    prompt = f"""
+Create a professional news article based ONLY on this source.
+
+COUNTRY:
+{country["name"]}
+
+SOURCE TITLE:
+{source["title"]}
+
+SOURCE SUMMARY:
+{source["summary"]}
+
+SOURCE URL:
+{source["url"]}
+
+Important:
+
+1. Identify the real category of the story.
+2. Do NOT automatically classify it as technology.
+3. Categories can be:
+   politics
+   economy
+   business
+   technology
+   sports
+   science
+   health
+   entertainment
+   culture
+   society
+   environment
+   education
+   international
+   local
+
+4. Write approximately 400-600 words.
+5. Do not invent statistics.
+6. Do not invent quotes.
+7. Do not invent events.
+8. Keep the article neutral.
+9. Make the title attractive but factual.
+
+Return ONLY valid JSON:
+
+{{
+    "title_en": "...",
+    "category": "...",
+    "content_en": "...",
+    "image_prompt": "..."
+}}
+"""
+
+    raw = ask_groq(prompt)
+
+    if not raw:
+
+        return None
+
+    try:
+
+        raw = raw.strip()
+
+        # Remove markdown fences
+        raw = raw.replace(
+            "```json",
+            ""
+        )
+
+        raw = raw.replace(
+            "```",
+            ""
+        )
+
+        raw = raw.strip()
+
+        data = json.loads(raw)
+
+        return data
+
+    except Exception as e:
+
+        print(
+            f"!! JSON parsing failed: {e}"
+        )
+
+        print(raw[:1000])
+
+        return None
+
+
+# ============================================================
+# TRANSLATIONS
+# ============================================================
+
+def translate_article(title, content):
+
+    result = {}
+
+    languages = {
+        "ar": "Arabic",
+        "fr": "French",
+        "es": "Spanish"
+    }
+
+    for code, language in languages.items():
+
+        prompt = f"""
+Translate the following news article into {language}.
+
+Do NOT change the facts.
+
+Do NOT add information.
+
+Keep the title and article separate.
+
+Return ONLY valid JSON:
+
+{{
+    "title": "...",
+    "content": "..."
+}}
+
+TITLE:
+{title}
+
+ARTICLE:
+{content}
+"""
+
+        raw = ask_groq(prompt)
+
+        if not raw:
+
+            continue
+
+        try:
+
+            raw = raw.replace(
+                "```json",
+                ""
+            )
+
+            raw = raw.replace(
+                "```",
+                ""
+            )
+
+            raw = raw.strip()
+
+            data = json.loads(raw)
+
+            result[code] = data
+
+        except Exception as e:
+
+            print(
+                f"!! Translation {code} failed: {e}"
+            )
+
+    return result
+
+
+# ============================================================
+# CHECK DUPLICATE
 # ============================================================
 
 def article_exists(source_url):
@@ -679,23 +652,32 @@ def article_exists(source_url):
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
-        placeholder = (
-            "%s"
-            if DB_URL
-            else "?"
-        )
+        if DATABASE_URL:
 
-        cur.execute(
-            f"""
-            SELECT id
-            FROM articles
-            WHERE source_url = {placeholder}
-            LIMIT 1
-            """,
-            (source_url,)
-        )
+            cur.execute(
+                """
+                SELECT id
+                FROM articles
+                WHERE source_url = %s
+                LIMIT 1
+                """,
+                (source_url,)
+            )
+
+        else:
+
+            cur.execute(
+                """
+                SELECT id
+                FROM articles
+                WHERE source_url = ?
+                LIMIT 1
+                """,
+                (source_url,)
+            )
 
         result = cur.fetchone()
 
@@ -713,336 +695,157 @@ def article_exists(source_url):
 
 
 # ============================================================
-# AI ARTICLE GENERATION
-# ============================================================
-
-def generate_article(
-    source_article,
-    region
-):
-
-    source_title = source_article["title"]
-    source_summary = source_article["summary"]
-    source_name = source_article["source"]
-
-    prompt = f"""
-Create a professional news article from the source below.
-
-REGION:
-{region}
-
-SOURCE TITLE:
-{source_title}
-
-SOURCE:
-{source_name}
-
-SOURCE SUMMARY:
-{source_summary}
-
-IMPORTANT:
-
-1. Do not invent facts.
-2. Do not change names, countries, organizations or numbers.
-3. Do not make the article about AI unless the source itself is about AI.
-4. Identify the real category:
-   politics, economy, business, technology, science,
-   sports, health, world, society or culture.
-5. Write a useful article, not just two sentences.
-6. Explain:
-   - what happened
-   - who is involved
-   - why it matters
-   - important context available in the source
-7. Neutral journalistic style.
-8. Do not mention that AI generated the article.
-
-Return ONLY valid JSON:
-
-{{
-    "title": "article title",
-    "content": "article content with paragraphs",
-    "category": "one category from the list"
-}}
-
-Categories:
-politics
-economy
-business
-technology
-science
-sports
-health
-world
-society
-culture
-"""
-
-    raw = ask_groq(
-        prompt,
-        temperature=0.25,
-        max_tokens=2500
-    )
-
-    if not raw:
-        return None
-
-    # Remove Markdown fences
-    raw = raw.replace(
-        "```json",
-        ""
-    )
-
-    raw = raw.replace(
-        "```",
-        ""
-    )
-
-    raw = raw.strip()
-
-    try:
-
-        data = json.loads(raw)
-
-        title = str(
-            data.get("title", "")
-        ).strip()
-
-        content = str(
-            data.get("content", "")
-        ).strip()
-
-        category = str(
-            data.get("category", "world")
-        ).lower().strip()
-
-        if category not in CATEGORIES:
-
-            category = "world"
-
-        if not title or not content:
-            return None
-
-        return {
-            "title": title,
-            "content": content,
-            "category": category
-        }
-
-    except Exception as e:
-
-        print(
-            f"!! JSON parsing failed: {e}"
-        )
-
-        print(
-            f"AI response: {raw[:500]}"
-        )
-
-        return None
-
-
-# ============================================================
-# TRANSLATION
-# ============================================================
-
-def translate_article(
-    title,
-    content,
-    language
-):
-
-    language_names = {
-        "ar": "Arabic",
-        "fr": "French",
-        "en": "English",
-        "es": "Spanish"
-    }
-
-    target = language_names[
-        language
-    ]
-
-    prompt = f"""
-Translate this news article into {target}.
-
-IMPORTANT:
-
-- Keep the exact meaning.
-- Do not add facts.
-- Do not remove facts.
-- Keep names of people and organizations correct.
-- Keep numbers and dates correct.
-- Use natural journalistic language.
-- Do not say "translation".
-- Do not put the answer inside Markdown.
-- Return ONLY JSON.
-
-SOURCE TITLE:
-{title}
-
-SOURCE CONTENT:
-{content}
-
-Return:
-
-{{
-    "title": "translated title",
-    "content": "translated article"
-}}
-"""
-
-    raw = ask_groq(
-        prompt,
-        temperature=0.15,
-        max_tokens=3000
-    )
-
-    if not raw:
-        return None
-
-    raw = raw.replace(
-        "```json",
-        ""
-    )
-
-    raw = raw.replace(
-        "```",
-        ""
-    )
-
-    raw = raw.strip()
-
-    try:
-
-        data = json.loads(raw)
-
-        return {
-            "title": str(
-                data.get("title", title)
-            ).strip(),
-
-            "content": str(
-                data.get("content", content)
-            ).strip()
-        }
-
-    except Exception as e:
-
-        print(
-            f"!! Translation JSON failed "
-            f"({language}): {e}"
-        )
-
-        return None
-
-
-# ============================================================
-# IMAGE
-# ============================================================
-
-def generate_image(
-    title
-):
-
-    prompt = (
-        f"{title}, "
-        "professional newspaper photography, "
-        "realistic editorial photograph, "
-        "no text, no watermark"
-    )
-
-    encoded = urllib.parse.quote(
-        prompt
-    )
-
-    return (
-        "https://image.pollinations.ai/"
-        f"prompt/{encoded}"
-    )
-
-
-# ============================================================
 # SAVE ARTICLE
 # ============================================================
 
 def save_article(
-    region,
-    category,
-    titles,
-    contents,
-    image_url,
-    source_url,
-    source_name
+    country_code,
+    source,
+    article,
+    translations
 ):
 
     try:
 
+        title_en = article.get(
+            "title_en",
+            ""
+        )
+
+        content_en = article.get(
+            "content_en",
+            ""
+        )
+
+        ar = translations.get(
+            "ar",
+            {}
+        )
+
+        fr = translations.get(
+            "fr",
+            {}
+        )
+
+        es = translations.get(
+            "es",
+            {}
+        )
+
+        image_url = generate_image(
+            article.get(
+                "image_prompt",
+                title_en
+            )
+        )
+
         conn = get_db_connection()
+
         cur = conn.cursor()
 
-        placeholder = (
-            "%s"
-            if DB_URL
-            else "?"
-        )
-
-        columns = """
-            region,
-            category,
-            title_ar,
-            title_fr,
-            title_en,
-            title_es,
-            content_ar,
-            content_fr,
-            content_en,
-            content_es,
-            image_url,
-            source_url,
-            source_name
-        """
-
         values = (
-            region,
-            category,
 
-            titles["ar"],
-            titles["fr"],
-            titles["en"],
-            titles["es"],
+            country_code,
 
-            contents["ar"],
-            contents["fr"],
-            contents["en"],
-            contents["es"],
+            article.get(
+                "category",
+                "general"
+            ),
+
+            source["title"],
+
+            source["url"],
 
             image_url,
 
-            source_url,
-            source_name
+            ar.get("title", title_en),
+
+            fr.get("title", title_en),
+
+            title_en,
+
+            es.get("title", title_en),
+
+            ar.get("content", content_en),
+
+            fr.get("content", content_en),
+
+            content_en,
+
+            es.get("content", content_en)
+
         )
 
-        placeholders = ",".join(
-            [placeholder] * len(values)
-        )
+        if DATABASE_URL:
 
-        cur.execute(
-            f"""
-            INSERT INTO articles
-            ({columns})
-            VALUES ({placeholders})
-            """,
-            values
-        )
+            cur.execute(
+                """
+                INSERT INTO articles
+                (
+                    country,
+                    category,
+                    source_title,
+                    source_url,
+                    image_url,
+
+                    title_ar,
+                    title_fr,
+                    title_en,
+                    title_es,
+
+                    content_ar,
+                    content_fr,
+                    content_en,
+                    content_es
+                )
+
+                VALUES
+                (
+                    %s,%s,%s,%s,%s,
+                    %s,%s,%s,%s,
+                    %s,%s,%s,%s
+                )
+                """,
+                values
+            )
+
+        else:
+
+            cur.execute(
+                """
+                INSERT INTO articles
+                (
+                    country,
+                    category,
+                    source_title,
+                    source_url,
+                    image_url,
+
+                    title_ar,
+                    title_fr,
+                    title_en,
+                    title_es,
+
+                    content_ar,
+                    content_fr,
+                    content_en,
+                    content_es
+                )
+
+                VALUES
+                (
+                    ?,?,?,?,?,?,?,?,?,?,?,?,?
+                )
+                """,
+                values
+            )
 
         conn.commit()
+
         conn.close()
 
         print(
-            f"-> SAVED [{region}] "
-            f"[{category}] "
-            f"{titles['en'][:80]}"
+            f"-> Saved [{country_code}] {title_en[:70]}"
         )
 
         return True
@@ -1050,250 +853,669 @@ def save_article(
     except Exception as e:
 
         print(
-            f"!! DB insert failed: {e}"
+            f"!! Save article failed: {e}"
         )
 
         return False
 
 
 # ============================================================
-# ROBOT
+# ROBOT FOR ONE COUNTRY
 # ============================================================
 
-robot_lock = threading.Lock()
+def run_robot_for_country(country_code):
 
+    print(
+        f"\n[{datetime.now()}]"
+        f" Robot started for {country_code}"
+    )
 
-def run_robot():
+    news = get_country_news(
+        country_code
+    )
 
-    if not robot_lock.acquire(
-        blocking=False
-    ):
+    if not news:
 
         print(
-            "!! Robot already running"
+            f"!! No news for {country_code}"
         )
 
         return
 
+    generated = 0
+
+    for source in news:
+
+        if generated >= 3:
+
+            break
+
+        if article_exists(
+            source["url"]
+        ):
+
+            print(
+                "-> Already exists:",
+                source["title"][:60]
+            )
+
+            continue
+
+        print(
+            "-> Generating:",
+            source["title"]
+        )
+
+        article = generate_article(
+            country_code,
+            source
+        )
+
+        if not article:
+
+            continue
+
+        translations = translate_article(
+            article.get(
+                "title_en",
+                ""
+            ),
+            article.get(
+                "content_en",
+                ""
+            )
+        )
+
+        save_article(
+            country_code,
+            source,
+            article,
+            translations
+        )
+
+        generated += 1
+
+        # Small delay to avoid hammering API
+        time.sleep(1)
+
+    print(
+        f"[{datetime.now()}]"
+        f" Robot finished for {country_code}"
+    )
+
+
+# ============================================================
+# GLOBAL ROBOT
+# ============================================================
+
+def run_robot():
+
+    print(
+        f"\n=============================="
+    )
+
+    print(
+        f"[{datetime.now()}] GLOBAL ROBOT STARTED"
+    )
+
+    print(
+        "=============================="
+    )
+
+    # IMPORTANT:
+    # We don't generate for every country at once.
+    #
+    # This protects your Groq free API limits.
+
+    for country_code in COUNTRIES.keys():
+
+        try:
+
+            run_robot_for_country(
+                country_code
+            )
+
+        except Exception as e:
+
+            print(
+                f"!! Robot error "
+                f"{country_code}: {e}"
+            )
+
+        # pause between countries
+        time.sleep(2)
+
+    print(
+        f"[{datetime.now()}] GLOBAL ROBOT FINISHED"
+    )
+
+
+# ============================================================
+# DETECT USER COUNTRY
+# ============================================================
+
+def get_user_country():
+
+    """
+    Try to detect the user's country.
+
+    Railway usually forwards the real client IP
+    through X-Forwarded-For.
+
+    For local development it falls back to MA.
+    """
+
     try:
 
-        print(
-            "\n"
-            "===================================="
+        forwarded = request.headers.get(
+            "X-Forwarded-For",
+            ""
         )
 
-        print(
-            f"[{datetime.now()}] "
-            "ROBOT STARTED"
+        if forwarded:
+
+            ip = forwarded.split(",")[0].strip()
+
+        else:
+
+            ip = request.remote_addr
+
+        # localhost
+        if ip in [
+            "127.0.0.1",
+            "::1",
+            "localhost"
+        ]:
+
+            return "MA"
+
+        url = (
+            f"https://ipwho.is/{ip}"
         )
 
-        print(
-            "===================================="
-        )
+        with urllib.request.urlopen(
+            url,
+            timeout=3
+        ) as response:
 
-        if not GROQ_KEYS:
-
-            print(
-                "!! ROBOT STOPPED: "
-                "No Groq API key."
+            data = json.loads(
+                response.read().decode()
             )
 
-            return
+        country_code = (
+            data.get("country_code")
+            or "MA"
+        ).upper()
 
-        # ----------------------------------------------------
-        # Process every region
-        # ----------------------------------------------------
+        if country_code in COUNTRIES:
 
-        for region in REGIONS.keys():
+            return country_code
 
-            print(
-                f"\n>>> Searching news for: "
-                f"{region}"
-            )
-
-            news = get_news_for_region(
-                region
-            )
-
-            if not news:
-
-                print(
-                    f"!! No news found for {region}"
-                )
-
-                continue
-
-            # Limit per region per robot run.
-            # Increase if you have enough API quota.
-            selected_news = news[:4]
-
-            print(
-                f"Found {len(news)} news. "
-                f"Processing {len(selected_news)}."
-            )
-
-            for source_article in selected_news:
-
-                source_url = source_article["url"]
-
-                # ------------------------------------------------
-                # Don't publish duplicate
-                # ------------------------------------------------
-
-                if article_exists(
-                    source_url
-                ):
-
-                    print(
-                        "-> Already exists: "
-                        f"{source_article['title'][:60]}"
-                    )
-
-                    continue
-
-                print(
-                    "\n"
-                    "------------------------------------"
-                )
-
-                print(
-                    "SOURCE: "
-                    f"{source_article['title']}"
-                )
-
-                # ------------------------------------------------
-                # Generate article
-                # ------------------------------------------------
-
-                article = generate_article(
-                    source_article,
-                    region
-                )
-
-                if not article:
-
-                    print(
-                        "!! Article generation failed"
-                    )
-
-                    continue
-
-                base_title = article["title"]
-                base_content = article["content"]
-
-                # ------------------------------------------------
-                # Translation
-                # ------------------------------------------------
-
-                titles = {
-                    "en": base_title
-                }
-
-                contents = {
-                    "en": base_content
-                }
-
-                for lang in [
-                    "ar",
-                    "fr",
-                    "es"
-                ]:
-
-                    print(
-                        f"-> Translating to {lang}"
-                    )
-
-                    translated = translate_article(
-                        base_title,
-                        base_content,
-                        lang
-                    )
-
-                    if translated:
-
-                        titles[lang] = translated[
-                            "title"
-                        ]
-
-                        contents[lang] = translated[
-                            "content"
-                        ]
-
-                    else:
-
-                        # fallback
-                        titles[lang] = base_title
-                        contents[lang] = base_content
-
-                # ------------------------------------------------
-                # Image
-                # ------------------------------------------------
-
-                image_url = generate_image(
-                    base_title
-                )
-
-                # ------------------------------------------------
-                # Save
-                # ------------------------------------------------
-
-                save_article(
-                    region=region,
-                    category=article["category"],
-                    titles=titles,
-                    contents=contents,
-                    image_url=image_url,
-                    source_url=source_url,
-                    source_name=source_article["source"]
-                )
-
-                # Small delay to avoid
-                # hammering the API
-                time.sleep(2)
-
-        print(
-            "\n"
-            "===================================="
-        )
-
-        print(
-            f"[{datetime.now()}] "
-            "ROBOT FINISHED"
-        )
-
-        print(
-            "====================================\n"
-        )
+        return "MA"
 
     except Exception as e:
 
         print(
-            f"!! ROBOT ERROR: {e}"
+            f"!! Country detection failed: {e}"
         )
 
-    finally:
-
-        robot_lock.release()
+        return "MA"
 
 
 # ============================================================
-# FRONTEND
+# DEFAULT LANGUAGE
 # ============================================================
 
-HTML_TEMPLATE = r"""
+def get_default_language(country):
+
+    # Morocco -> Arabic
+    if country == "MA":
+        return "ar"
+
+    # France -> French
+    if country == "FR":
+        return "fr"
+
+    # Spain -> Spanish
+    if country == "ES":
+        return "es"
+
+    # Most other countries -> English
+    return "en"
+
+
+# ============================================================
+# GET ARTICLES
+# ============================================================
+
+def get_articles(country, limit=30):
+
+    try:
+
+        conn = get_db_connection()
+
+        cur = conn.cursor()
+
+        if DATABASE_URL:
+
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    country,
+                    category,
+                    source_title,
+                    source_url,
+                    image_url,
+                    title_ar,
+                    title_fr,
+                    title_en,
+                    title_es,
+                    created_at
+                FROM articles
+                WHERE country = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (
+                    country,
+                    limit
+                )
+            )
+
+        else:
+
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    country,
+                    category,
+                    source_title,
+                    source_url,
+                    image_url,
+                    title_ar,
+                    title_fr,
+                    title_en,
+                    title_es,
+                    created_at
+                FROM articles
+                WHERE country = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (
+                    country,
+                    limit
+                )
+            )
+
+        rows = cur.fetchall()
+
+        conn.close()
+
+        return rows
+
+    except Exception as e:
+
+        print(
+            f"!! Get articles failed: {e}"
+        )
+
+        return []
+
+
+# ============================================================
+# GET ONE ARTICLE
+# ============================================================
+
+def get_article(article_id):
+
+    try:
+
+        conn = get_db_connection()
+
+        cur = conn.cursor()
+
+        if DATABASE_URL:
+
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    country,
+                    category,
+                    source_title,
+                    source_url,
+                    image_url,
+
+                    title_ar,
+                    title_fr,
+                    title_en,
+                    title_es,
+
+                    content_ar,
+                    content_fr,
+                    content_en,
+                    content_es,
+
+                    created_at
+
+                FROM articles
+                WHERE id = %s
+                """,
+                (article_id,)
+            )
+
+        else:
+
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    country,
+                    category,
+                    source_title,
+                    source_url,
+                    image_url,
+
+                    title_ar,
+                    title_fr,
+                    title_en,
+                    title_es,
+
+                    content_ar,
+                    content_fr,
+                    content_en,
+                    content_es,
+
+                    created_at
+
+                FROM articles
+                WHERE id = ?
+                """,
+                (article_id,)
+            )
+
+        row = cur.fetchone()
+
+        conn.close()
+
+        return row
+
+    except Exception as e:
+
+        print(
+            f"!! Get article failed: {e}"
+        )
+
+        return None
+
+
+# ============================================================
+# HOME PAGE
+# ============================================================
+
+@app.route("/")
+def home():
+
+    # Detect country automatically
+    detected_country = get_user_country()
+
+    # User can manually select country
+    country = request.args.get(
+        "country",
+        detected_country
+    ).upper()
+
+    if country not in COUNTRIES:
+
+        country = detected_country
+
+    # Language
+    lang = request.args.get(
+        "lang"
+    )
+
+    if lang not in LANGUAGES:
+
+        lang = get_default_language(
+            country
+        )
+
+    rows = get_articles(
+        country,
+        30
+    )
+
+    # If this country has no articles,
+    # generate a few immediately.
+    if not rows:
+
+        print(
+            f"-> No articles for {country}. "
+            "Starting robot..."
+        )
+
+        thread = threading.Thread(
+            target=run_robot_for_country,
+            args=(country,),
+            daemon=True
+        )
+
+        thread.start()
+
+    articles = []
+
+    for row in rows:
+
+        # PostgreSQL tuple indexes
+        article = {
+
+            "id": row[0],
+
+            "country": row[1],
+
+            "category": row[2],
+
+            "source_title": row[3],
+
+            "source_url": row[4],
+
+            "image": row[5],
+
+            "title": row[
+                {
+                    "ar": 6,
+                    "fr": 7,
+                    "en": 8,
+                    "es": 9
+                }[lang]
+            ]
+
+        }
+
+        articles.append(article)
+
+    country_name = COUNTRIES[
+        country
+    ][lang]
+
+    return render_template_string(
+
+        HOME_HTML,
+
+        articles=articles,
+
+        countries=COUNTRIES,
+
+        languages=LANGUAGES,
+
+        country=country,
+
+        lang=lang,
+
+        country_name=country_name
+
+    )
+
+
+# ============================================================
+# ARTICLE PAGE
+# ============================================================
+
+@app.route("/article/<int:article_id>")
+def article_page(article_id):
+
+    country = request.args.get(
+        "country"
+    )
+
+    if not country:
+
+        country = get_user_country()
+
+    country = country.upper()
+
+    if country not in COUNTRIES:
+
+        country = "MA"
+
+    lang = request.args.get(
+        "lang"
+    )
+
+    if lang not in LANGUAGES:
+
+        lang = get_default_language(
+            country
+        )
+
+    row = get_article(
+        article_id
+    )
+
+    if not row:
+
+        return (
+            "Article not found",
+            404
+        )
+
+    indexes = {
+
+        "ar": (6, 10),
+
+        "fr": (7, 11),
+
+        "en": (8, 12),
+
+        "es": (9, 13)
+
+    }
+
+    title_index, content_index = indexes[
+        lang
+    ]
+
+    article = {
+
+        "id": row[0],
+
+        "country": row[1],
+
+        "category": row[2],
+
+        "source_title": row[3],
+
+        "source_url": row[4],
+
+        "image": row[5],
+
+        "title": row[title_index],
+
+        "content": row[content_index],
+
+        "created_at": row[14]
+
+    }
+
+    return render_template_string(
+
+        ARTICLE_HTML,
+
+        article=article,
+
+        countries=COUNTRIES,
+
+        languages=LANGUAGES,
+
+        country=country,
+
+        lang=lang
+
+    )
+
+
+# ============================================================
+# MANUAL ROBOT ROUTE
+# ============================================================
+
+@app.route("/run-robot")
+def manual_robot():
+
+    country = request.args.get(
+        "country"
+    )
+
+    if not country:
+
+        country = get_user_country()
+
+    country = country.upper()
+
+    if country not in COUNTRIES:
+
+        country = "MA"
+
+    thread = threading.Thread(
+
+        target=run_robot_for_country,
+
+        args=(country,),
+
+        daemon=True
+
+    )
+
+    thread.start()
+
+    return redirect(
+        url_for(
+            "home",
+            country=country
+        )
+    )
+
+
+# ============================================================
+# HTML
+# ============================================================
+
+HOME_HTML = """
+
 <!DOCTYPE html>
-<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+
+<html lang="{{ lang }}">
 
 <head>
 
 <meta charset="UTF-8">
 
-<meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
->
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
 
-<title>{{ page_title }}</title>
+<title>{{ country_name }} News</title>
 
 <style>
 
@@ -1302,104 +1524,92 @@ HTML_TEMPLATE = r"""
 }
 
 body {
+
     margin: 0;
+
     font-family:
-        Arial,
-        "Noto Sans Arabic",
-        sans-serif;
+    Arial,
+    sans-serif;
 
     background: #f4f6f8;
-    color: #18202a;
+
+    color: #111;
+
 }
 
 header {
+
     background: #111827;
+
     color: white;
-    padding: 18px 5%;
+
+    padding: 20px;
+
 }
 
-.header-inner {
-    max-width: 1200px;
+.header {
+
+    max-width: 1100px;
+
     margin: auto;
 
     display: flex;
+
     justify-content: space-between;
+
     align-items: center;
 
-    gap: 20px;
+    gap: 15px;
+
 }
 
 .logo {
-    font-size: 28px;
-    font-weight: bold;
-}
 
-.controls {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    font-size: 25px;
+
+    font-weight: bold;
+
 }
 
 select {
-    padding: 9px 12px;
+
+    padding: 9px;
+
     border-radius: 8px;
+
     border: none;
-}
 
-nav {
-    background: white;
-    border-bottom: 1px solid #ddd;
-    padding: 12px 5%;
-}
-
-.nav-inner {
-    max-width: 1200px;
-    margin: auto;
-
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.nav-inner a {
-    text-decoration: none;
-    color: #374151;
-
-    padding: 8px 13px;
-    border-radius: 20px;
-
-    background: #f1f5f9;
-}
-
-.nav-inner a.active {
-    background: #111827;
-    color: white;
 }
 
 .container {
-    max-width: 1200px;
+
+    max-width: 1100px;
+
     margin: 30px auto;
-    padding: 0 20px;
+
+    padding: 0 15px;
+
 }
 
-.page-title {
-    font-size: 32px;
+h1 {
+
     margin-bottom: 25px;
+
 }
 
 .grid {
+
     display: grid;
 
     grid-template-columns:
-        repeat(
-            auto-fit,
-            minmax(280px, 1fr)
-        );
+    repeat(auto-fit, minmax(280px, 1fr));
 
-    gap: 22px;
+    gap: 20px;
+
 }
 
 .card {
+
     background: white;
 
     border-radius: 14px;
@@ -1407,142 +1617,83 @@ nav {
     overflow: hidden;
 
     box-shadow:
-        0 4px 15px
-        rgba(0,0,0,0.08);
+    0 4px 15px rgba(0,0,0,.08);
 
-    transition:
-        transform .2s,
-        box-shadow .2s;
+    transition: .2s;
+
 }
 
 .card:hover {
+
     transform: translateY(-4px);
 
-    box-shadow:
-        0 8px 25px
-        rgba(0,0,0,0.12);
-}
-
-.card-link {
-    text-decoration: none;
-    color: inherit;
 }
 
 .card img {
+
     width: 100%;
+
     height: 190px;
+
     object-fit: cover;
+
 }
 
-.card-body {
+.card-content {
+
     padding: 18px;
+
 }
 
 .category {
-    display: inline-block;
 
-    background: #e5e7eb;
+    color: #2563eb;
 
-    padding: 5px 10px;
+    font-size: 13px;
 
-    border-radius: 20px;
+    font-weight: bold;
 
-    font-size: 12px;
+    text-transform: uppercase;
 
-    margin-bottom: 10px;
 }
 
 .card h2 {
+
     font-size: 20px;
-    margin: 5px 0 10px;
+
+    line-height: 1.3;
+
 }
 
-.card p {
-    color: #64748b;
-    line-height: 1.6;
+.card a {
+
+    text-decoration: none;
+
+    color: inherit;
+
 }
 
-.article {
-    max-width: 900px;
-    margin: 35px auto;
+.read {
+
+    display: inline-block;
+
+    margin-top: 10px;
+
+    color: #2563eb;
+
+    font-weight: bold;
+
+}
+
+.empty {
 
     background: white;
 
     padding: 30px;
 
-    border-radius: 15px;
-}
-
-.article img {
-    width: 100%;
-    max-height: 500px;
-    object-fit: cover;
-
     border-radius: 12px;
 
-    margin: 20px 0;
-}
-
-.article h1 {
-    font-size: 38px;
-    line-height: 1.25;
-}
-
-.article-content {
-    font-size: 19px;
-    line-height: 1.9;
-    white-space: pre-line;
-}
-
-.source {
-    margin-top: 30px;
-
-    padding: 15px;
-
-    background: #f1f5f9;
-
-    border-radius: 10px;
-}
-
-.source a {
-    color: #2563eb;
-}
-
-.back {
-    display: inline-block;
-
-    margin-bottom: 20px;
-
-    text-decoration: none;
-
-    color: #2563eb;
-}
-
-.empty {
-    background: white;
-    padding: 40px;
-    border-radius: 12px;
     text-align: center;
-}
-
-footer {
-    text-align: center;
-
-    padding: 40px;
-
-    color: #64748b;
-}
-
-@media(max-width: 600px) {
-
-    .header-inner {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .article h1 {
-        font-size: 28px;
-    }
 
 }
 
@@ -1554,25 +1705,30 @@ footer {
 
 <header>
 
-<div class="header-inner">
+<div class="header">
 
 <div class="logo">
-CORVEX
+
+CORVEX NEWS
+
 </div>
 
-<div class="controls">
+<div>
+
+<form method="get">
 
 <select
-    onchange="changeRegion(this.value)"
->
+name="country"
+onchange="this.form.submit()">
 
-{% for key, value in regions.items() %}
+{% for code, c in countries.items() %}
 
 <option
-    value="{{ key }}"
-    {% if key == region %}selected{% endif %}
->
-    {{ value.name[lang] }}
+value="{{ code }}"
+{% if code == country %}selected{% endif %}>
+
+{{ c[lang] }}
+
 </option>
 
 {% endfor %}
@@ -1580,21 +1736,24 @@ CORVEX
 </select>
 
 <select
-    onchange="changeLanguage(this.value)"
->
+name="lang"
+onchange="this.form.submit()">
 
-{% for key, value in languages.items() %}
+{% for code, name in languages.items() %}
 
 <option
-    value="{{ key }}"
-    {% if key == lang %}selected{% endif %}
->
-    {{ value }}
+value="{{ code }}"
+{% if code == lang %}selected{% endif %}>
+
+{{ name }}
+
 </option>
 
 {% endfor %}
 
 </select>
+
+</form>
 
 </div>
 
@@ -1603,32 +1762,11 @@ CORVEX
 </header>
 
 
-<nav>
-
-<div class="nav-inner">
-
-{% for key, value in regions.items() %}
-
-<a
-    href="/?region={{ key }}&lang={{ lang }}"
-    class="{% if key == region %}active{% endif %}"
->
-    {{ value.name[lang] }}
-</a>
-
-{% endfor %}
-
-</div>
-
-</nav>
-
-
 <div class="container">
 
-<h1 class="page-title">
-    {{ page_title }}
+<h1>
+Latest News — {{ country_name }}
 </h1>
-
 
 {% if articles %}
 
@@ -1636,38 +1774,40 @@ CORVEX
 
 {% for article in articles %}
 
-<a
-    class="card-link"
-    href="/article/{{ article.id }}?region={{ region }}&lang={{ lang }}"
->
-
 <div class="card">
 
+<a href="/article/{{ article.id }}?country={{ country }}&lang={{ lang }}">
+
 <img
-    src="{{ article.img }}"
-    loading="lazy"
-    onerror="this.src='https://placehold.co/800x450?text=News'"
->
+src="{{ article.image }}"
+alt="{{ article.title }}"
+loading="lazy">
 
-<div class="card-body">
+<div class="card-content">
 
-<span class="category">
-    {{ article.category }}
-</span>
+<div class="category">
+
+{{ article.category }}
+
+</div>
 
 <h2>
-    {{ article.title }}
+
+{{ article.title }}
+
 </h2>
 
-<p>
-    {{ article.content }}
-</p>
+<div class="read">
+
+Read full article →
 
 </div>
 
 </div>
 
 </a>
+
+</div>
 
 {% endfor %}
 
@@ -1678,12 +1818,17 @@ CORVEX
 <div class="empty">
 
 <h2>
-    No articles yet
+Preparing the latest news...
 </h2>
 
 <p>
-    The robot is searching for news.
+Our robot is currently collecting news for
+{{ country_name }}.
 </p>
+
+<meta
+http-equiv="refresh"
+content="8">
 
 </div>
 
@@ -1691,163 +1836,139 @@ CORVEX
 
 </div>
 
-
-<footer>
-    CORVEX News
-</footer>
-
-
-<script>
-
-function changeRegion(region) {
-
-    const params =
-        new URLSearchParams(
-            window.location.search
-        );
-
-    params.set(
-        "region",
-        region
-    );
-
-    window.location.href =
-        "/?" + params.toString();
-}
-
-
-function changeLanguage(lang) {
-
-    const params =
-        new URLSearchParams(
-            window.location.search
-        );
-
-    params.set(
-        "lang",
-        lang
-    );
-
-    window.location.href =
-        "/?" + params.toString();
-}
-
-</script>
-
 </body>
 
 </html>
+
 """
 
 
 # ============================================================
-# ARTICLE PAGE
+# ARTICLE HTML
 # ============================================================
 
-ARTICLE_TEMPLATE = r"""
+ARTICLE_HTML = """
+
 <!DOCTYPE html>
-<html
-lang="{{ lang }}"
-dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}"
->
+
+<html lang="{{ lang }}">
 
 <head>
 
 <meta charset="UTF-8">
 
-<meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
->
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
 
 <title>{{ article.title }}</title>
 
 <style>
 
 body {
+
     margin: 0;
+
     background: #f4f6f8;
 
-    color: #18202a;
+    font-family: Arial, sans-serif;
 
-    font-family:
-        Arial,
-        "Noto Sans Arabic",
-        sans-serif;
+    color: #111827;
+
 }
 
 .container {
-    max-width: 900px;
+
+    max-width: 850px;
+
     margin: 40px auto;
+
     padding: 20px;
-}
 
-.back {
-    display: inline-block;
-    margin-bottom: 20px;
-
-    text-decoration: none;
-    color: #2563eb;
 }
 
 .article {
+
     background: white;
+
     padding: 30px;
 
-    border-radius: 15px;
+    border-radius: 16px;
 
     box-shadow:
-        0 5px 20px
-        rgba(0,0,0,.08);
-}
+    0 5px 20px rgba(0,0,0,.08);
 
-.category {
-    display: inline-block;
-
-    background: #e5e7eb;
-
-    padding: 6px 12px;
-
-    border-radius: 20px;
-
-    font-size: 13px;
-}
-
-h1 {
-    font-size: 40px;
-    line-height: 1.3;
 }
 
 .article img {
+
     width: 100%;
-    max-height: 550px;
+
+    max-height: 450px;
 
     object-fit: cover;
 
     border-radius: 12px;
 
     margin: 20px 0;
+
+}
+
+.category {
+
+    color: #2563eb;
+
+    font-weight: bold;
+
+    text-transform: uppercase;
+
+}
+
+h1 {
+
+    font-size: 38px;
+
+    line-height: 1.2;
+
 }
 
 .content {
-    font-size: 20px;
-    line-height: 2;
+
+    font-size: 19px;
+
+    line-height: 1.8;
 
     white-space: pre-line;
+
+}
+
+.back {
+
+    display: inline-block;
+
+    margin-bottom: 20px;
+
+    color: #2563eb;
+
+    text-decoration: none;
+
+    font-weight: bold;
+
 }
 
 .source {
-    margin-top: 35px;
 
-    padding: 18px;
+    margin-top: 30px;
 
-    background: #f1f5f9;
+    padding-top: 20px;
 
-    border-radius: 10px;
+    border-top: 1px solid #ddd;
+
 }
 
 .source a {
+
     color: #2563eb;
+
 }
 
 </style>
@@ -1860,56 +1981,58 @@ h1 {
 
 <a
 class="back"
-href="/?region={{ region }}&lang={{ lang }}"
->
-← {{ back_text }}
+href="/?country={{ country }}&lang={{ lang }}">
+
+← Back to news
+
 </a>
 
 <article class="article">
 
-<span class="category">
-    {{ article.category }}
-</span>
+<div class="category">
+
+{{ article.category }}
+
+</div>
 
 <h1>
-    {{ article.title }}
+
+{{ article.title }}
+
 </h1>
 
 <img
-src="{{ article.img }}"
-onerror="this.src='https://placehold.co/1000x600?text=News'"
->
+src="{{ article.image }}"
+alt="{{ article.title }}">
 
 <div class="content">
+
 {{ article.content }}
+
 </div>
-
-
-{% if article.source_url %}
 
 <div class="source">
 
 <strong>
-    {{ source_text }}
+Original source:
 </strong>
 
 <br>
 
-{{ article.source_name }}
+{{ article.source_title }}
 
 <br><br>
 
 <a
 href="{{ article.source_url }}"
 target="_blank"
-rel="noopener noreferrer"
->
-    {{ original_text }}
+rel="noopener">
+
+Read original source →
+
 </a>
 
 </div>
-
-{% endif %}
 
 </article>
 
@@ -1918,374 +2041,46 @@ rel="noopener noreferrer"
 </body>
 
 </html>
+
 """
-
-
-# ============================================================
-# HOME
-# ============================================================
-
-@app.route("/")
-def home():
-
-    region = request.args.get(
-        "region",
-        "morocco"
-    )
-
-    if region not in REGIONS:
-        region = "morocco"
-
-    default_lang = REGIONS[
-        region
-    ]["default_lang"]
-
-    lang = request.args.get(
-        "lang",
-        default_lang
-    )
-
-    if lang not in LANGUAGES:
-        lang = default_lang
-
-    articles = []
-
-    try:
-
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        t_col = (
-            f"title_{lang}"
-        )
-
-        c_col = (
-            f"content_{lang}"
-        )
-
-        placeholder = (
-            "%s"
-            if DB_URL
-            else "?"
-        )
-
-        query = f"""
-            SELECT
-                id,
-                category,
-                {t_col},
-                {c_col},
-                image_url
-            FROM articles
-
-            WHERE region = {placeholder}
-
-            ORDER BY created_at DESC
-
-            LIMIT 50
-        """
-
-        cur.execute(
-            query,
-            (region,)
-        )
-
-        rows = cur.fetchall()
-
-        conn.close()
-
-        for row in rows:
-
-            if DB_URL:
-
-                article_id = row[0]
-                category = row[1]
-                title = row[2]
-                content = row[3]
-                image = row[4]
-
-            else:
-
-                article_id = row[0]
-                category = row[1]
-                title = row[2]
-                content = row[3]
-                image = row[4]
-
-            articles.append(
-                {
-                    "id": article_id,
-
-                    "category":
-                        category or "world",
-
-                    "title":
-                        title or "",
-
-                    "content":
-                        (
-                            (content or "")[:220]
-                            + "..."
-                        ),
-
-                    "img":
-                        image
-                }
-            )
-
-    except Exception as e:
-
-        print(
-            f"!! home DB error: {e}"
-        )
-
-    return render_template_string(
-        HTML_TEMPLATE,
-
-        articles=articles,
-
-        regions=REGIONS,
-
-        languages=LANGUAGES,
-
-        region=region,
-
-        lang=lang,
-
-        page_title=REGIONS[
-            region
-        ]["name"][lang]
-    )
-
-
-# ============================================================
-# ARTICLE DETAILS
-# ============================================================
-
-@app.route(
-    "/article/<int:article_id>"
-)
-def article_details(
-    article_id
-):
-
-    region = request.args.get(
-        "region",
-        "morocco"
-    )
-
-    if region not in REGIONS:
-        region = "morocco"
-
-    default_lang = REGIONS[
-        region
-    ]["default_lang"]
-
-    lang = request.args.get(
-        "lang",
-        default_lang
-    )
-
-    if lang not in LANGUAGES:
-        lang = default_lang
-
-    try:
-
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        t_col = (
-            f"title_{lang}"
-        )
-
-        c_col = (
-            f"content_{lang}"
-        )
-
-        placeholder = (
-            "%s"
-            if DB_URL
-            else "?"
-        )
-
-        query = f"""
-            SELECT
-                id,
-                category,
-                {t_col},
-                {c_col},
-                image_url,
-                source_url,
-                source_name
-            FROM articles
-            WHERE id = {placeholder}
-            LIMIT 1
-        """
-
-        cur.execute(
-            query,
-            (article_id,)
-        )
-
-        row = cur.fetchone()
-
-        conn.close()
-
-        if not row:
-            abort(404)
-
-        article = {
-
-            "id": row[0],
-
-            "category":
-                row[1] or "world",
-
-            "title":
-                row[2] or "",
-
-            "content":
-                row[3] or "",
-
-            "img":
-                row[4],
-
-            "source_url":
-                row[5],
-
-            "source_name":
-                row[6]
-        }
-
-        back_text = {
-            "ar": "العودة",
-            "fr": "Retour",
-            "en": "Back",
-            "es": "Volver"
-        }[lang]
-
-        source_text = {
-            "ar": "المصدر",
-            "fr": "Source",
-            "en": "Source",
-            "es": "Fuente"
-        }[lang]
-
-        original_text = {
-            "ar": "قراءة المصدر الأصلي",
-            "fr": "Lire la source originale",
-            "en": "Read original source",
-            "es": "Leer fuente original"
-        }[lang]
-
-        return render_template_string(
-            ARTICLE_TEMPLATE,
-
-            article=article,
-
-            region=region,
-
-            lang=lang,
-
-            back_text=back_text,
-
-            source_text=source_text,
-
-            original_text=original_text
-        )
-
-    except Exception as e:
-
-        print(
-            f"!! article page error: {e}"
-        )
-
-        abort(500)
-
-
-# ============================================================
-# MANUAL ROBOT TRIGGER
-# ============================================================
-
-@app.route("/run-robot")
-def manual_robot():
-
-    # IMPORTANT:
-    # This endpoint is useful for testing.
-    # You can open /run-robot manually.
-
-    threading.Thread(
-        target=run_robot,
-        daemon=True
-    ).start()
-
-    return """
-    <h2>Robot started.</h2>
-    <p>Check Railway logs.</p>
-    """
-
-
-# ============================================================
-# HEALTH CHECK
-# ============================================================
-
-@app.route("/health")
-def health():
-
-    return {
-        "status": "ok",
-        "groq_keys": len(GROQ_KEYS),
-        "model": GROQ_MODEL
-    }
 
 
 # ============================================================
 # SCHEDULER
 # ============================================================
 
-scheduler = BackgroundScheduler(
-    timezone="UTC"
-)
+scheduler = BackgroundScheduler()
 
-# First execution shortly after startup.
-# Then every 6 hours.
-
+# Every 6 hours
 scheduler.add_job(
     run_robot,
     "interval",
     hours=6,
-    next_run_time=datetime.now(),
     id="news_robot",
-    replace_existing=True,
-    max_instances=1,
-    coalesce=True
+    replace_existing=True
 )
 
 scheduler.start()
 
 print(
-    "-> Scheduler started"
-)
-
-print(
-    f"-> Groq keys loaded: "
-    f"{len(GROQ_KEYS)}"
-)
-
-print(
-    f"-> Groq model: "
-    f"{GROQ_MODEL}"
+    "-> News Robot Scheduler Started"
 )
 
 
 # ============================================================
-# LOCAL DEVELOPMENT
+# START
 # ============================================================
 
 if __name__ == "__main__":
 
     app.run(
         host="0.0.0.0",
-        port=PORT,
+        port=int(
+            os.getenv(
+                "PORT",
+                "5000"
+            )
+        ),
         debug=False
     )
+````
