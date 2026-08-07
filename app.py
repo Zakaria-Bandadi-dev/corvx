@@ -72,7 +72,7 @@ def init_db():
 
 # Zid: kaytnfed mباشرة m3a l-import dyal module, machi ghi f __main__.
 # Hadi li khassa bach ykhdem m3a gunicorn (li ma kaydkhelch l `if __name__ == "__main__"`).
-init_db()
+
 
 # ================== 3. AI & IMAGE GENERATION ==================
 def generate_with_fallback(prompt):
@@ -216,6 +216,7 @@ HTML_TEMPLATE = """
 if __name__ == "__main__":
     # init_db() rah t-appelat déjà f fo9 (module level)
     # Lancement du scheduler
+    init_db()
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_robot, 'interval', hours=6)
     scheduler.start()
