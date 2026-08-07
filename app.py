@@ -11,7 +11,7 @@ API_KEYS = [os.getenv(f"GEMINI_KEY{i}") for i in range(1, 6)]
 API_KEYS = [k for k in API_KEYS if k]
 current_key_index = 0
 
-DB_URL = os.getenv("DATABASE_URL") # Railway Postgres URL
+DB_URL = os.getenv("DATABASE_URL") # Railway / Supabase Postgres URL (session pooler)
 GA_ID = os.getenv("GA_ID", "")
 ADSENSE_ID = os.getenv("ADSENSE_ID", "")
 
@@ -36,32 +36,43 @@ def get_db_connection():
         return conn
 
 def init_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    # Utilisation de TEXT pour la compatibilité SQLite/Postgres simplifiée
-    query = """
-        CREATE TABLE IF NOT EXISTS articles (
-            id SERIAL PRIMARY KEY if not exists, 
-            region TEXT, category TEXT,
-            title_ar TEXT, title_fr TEXT, title_en TEXT, title_es TEXT,
-            content_ar TEXT, content_fr TEXT, content_en TEXT, content_es TEXT,
-            image_url TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """
-    # Note: SERIAL PRIMARY KEY est spécifique à Postgres. Pour SQLite on adapte:
-    if not DB_URL:
-        query = """
-            CREATE TABLE IF NOT EXISTS articles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, region TEXT, category TEXT,
-                title_ar TEXT, title_fr TEXT, title_en TEXT, title_es TEXT,
-                content_ar TEXT, content_fr TEXT, content_en TEXT, content_es TEXT,
-                image_url TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-        """
-    cur.execute(query)
-    conn.commit()
-    conn.close()
-    print("-> Database Ready")
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if DB_URL:
+            # Postgres (Supabase)
+            query = """
+                CREATE TABLE IF NOT EXISTS articles (
+                    id SERIAL PRIMARY KEY,
+                    region TEXT, category TEXT,
+                    title_ar TEXT, title_fr TEXT, title_en TEXT, title_es TEXT,
+                    content_ar TEXT, content_fr TEXT, content_en TEXT, content_es TEXT,
+                    image_url TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """
+        else:
+            # Fallback SQLite
+            query = """
+                CREATE TABLE IF NOT EXISTS articles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, region TEXT, category TEXT,
+                    title_ar TEXT, title_fr TEXT, title_en TEXT, title_es TEXT,
+                    content_ar TEXT, content_fr TEXT, content_en TEXT, content_es TEXT,
+                    image_url TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+            """
+
+        cur.execute(query)
+        conn.commit()
+        conn.close()
+        print("-> Database Ready")
+    except Exception as e:
+        # Ma khassnach app tsala b l-crash total ila DB ma jatch dghya f startup
+        print(f"!! init_db failed: {e}")
+
+# Zid: kaytnfed mباشرة m3a l-import dyal module, machi ghi f __main__.
+# Hadi li khassa bach ykhdem m3a gunicorn (li ma kaydkhelch l `if __name__ == "__main__"`).
+init_db()
 
 # ================== 3. AI & IMAGE GENERATION ==================
 def generate_with_fallback(prompt):
@@ -69,7 +80,7 @@ def generate_with_fallback(prompt):
     if not API_KEYS:
         print("!! No API Keys found. Returning dummy data.")
         return None
-        
+
     for _ in range(len(API_KEYS)):
         try:
             genai.configure(api_key=API_KEYS[current_key_index])
@@ -103,7 +114,7 @@ def run_robot():
             prompt = f"Write a news article about {topic}. Return ONLY JSON: {{'title':'...', 'content':'...', 'img_prompt':'...', 'cat':'tech'}}"
             raw_res = generate_with_fallback(prompt)
             if not raw_res: continue
-            
+
             try:
                 # Nettoyage du JSON (Gemini entoure souvent de ```json)
                 clean_json = raw_res.replace("```json","").replace("```","").strip()
@@ -120,18 +131,21 @@ def run_robot():
                     data[f'content_{lang}'] = parts[1] if len(parts) > 1 else tr_res
 
             img_url = generate_image(data.get('img_prompt', topic))
-            
+
             # Sauvegarde DB
-            conn = get_db_connection()
-            cur = conn.cursor()
-            placeholder = "?" if not DB_URL else "%s"
-            cols = "region, category, title_ar, title_fr, title_en, title_es, content_ar, content_fr, content_en, content_es, image_url"
-            vals = (region, data.get('cat'), data.get('title_ar'), data.get('title_fr'), data['title'], data.get('title_es'),
-                    data.get('content_ar'), data.get('content_fr'), data['content'], data.get('content_es'), img_url)
-            cur.execute(f"INSERT INTO articles ({cols}) VALUES ({','.join([placeholder]*11)})", vals)
-            conn.commit()
-            conn.close()
-            print(f"-> Saved: {data['title'][:30]}")
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                placeholder = "?" if not DB_URL else "%s"
+                cols = "region, category, title_ar, title_fr, title_en, title_es, content_ar, content_fr, content_en, content_es, image_url"
+                vals = (region, data.get('cat'), data.get('title_ar'), data.get('title_fr'), data['title'], data.get('title_es'),
+                        data.get('content_ar'), data.get('content_fr'), data['content'], data.get('content_es'), img_url)
+                cur.execute(f"INSERT INTO articles ({cols}) VALUES ({','.join([placeholder]*11)})", vals)
+                conn.commit()
+                conn.close()
+                print(f"-> Saved: {data['title'][:30]}")
+            except Exception as e:
+                print(f"!! DB insert failed: {e}")
     print(f"[{datetime.now()}] Robot Finished")
 
 # ================== 5. ROUTES & FRONTEND ==================
@@ -139,23 +153,26 @@ def run_robot():
 def home():
     region = request.args.get('region', 'global')
     lang = request.args.get('lang', 'en')
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    # Protection contre injection SQL pour les noms de colonnes
-    t_col = f"title_{lang}" if lang in LANGUAGES else "title_en"
-    c_col = f"content_{lang}" if lang in LANGUAGES else "content_en"
-    
-    placeholder = "?" if not DB_URL else "%s"
-    query = f"SELECT id, {t_col}, {c_col}, image_url FROM articles WHERE region={placeholder} ORDER BY created_at DESC LIMIT 20"
-    cur.execute(query, (region,))
-    rows = cur.fetchall()
-    conn.close()
-    
+
     articles = []
-    for r in rows:
-        articles.append({'id':r[0], 'title':r[1], 'content':(r[2] or "")[:200]+"...", 'img':r[3]})
-        
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Protection contre injection SQL pour les noms de colonnes
+        t_col = f"title_{lang}" if lang in LANGUAGES else "title_en"
+        c_col = f"content_{lang}" if lang in LANGUAGES else "content_en"
+
+        placeholder = "?" if not DB_URL else "%s"
+        query = f"SELECT id, {t_col}, {c_col}, image_url FROM articles WHERE region={placeholder} ORDER BY created_at DESC LIMIT 20"
+        cur.execute(query, (region,))
+        rows = cur.fetchall()
+        conn.close()
+
+        for r in rows:
+            articles.append({'id':r[0], 'title':r[1], 'content':(r[2] or "")[:200]+"...", 'img':r[3]})
+    except Exception as e:
+        print(f"!! home() DB query failed: {e}")
+
     return render_template_string(HTML_TEMPLATE, articles=articles, regions=REGIONS, languages=LANGUAGES, region=region, lang=lang, page_title=REGIONS[region][lang])
 
 HTML_TEMPLATE = """
@@ -197,7 +214,7 @@ HTML_TEMPLATE = """
 """
 
 if __name__ == "__main__":
-    init_db()
+    # init_db() rah t-appelat déjà f fo9 (module level)
     # Lancement du scheduler
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_robot, 'interval', hours=6)
