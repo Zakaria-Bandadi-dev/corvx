@@ -41,37 +41,54 @@ def init_db():
         cur = conn.cursor()
 
         if DB_URL:
-            # Postgres (Supabase)
             query = """
                 CREATE TABLE IF NOT EXISTS articles (
                     id SERIAL PRIMARY KEY,
-                    region TEXT, category TEXT,
-                    title_ar TEXT, title_fr TEXT, title_en TEXT, title_es TEXT,
-                    content_ar TEXT, content_fr TEXT, content_en TEXT, content_es TEXT,
-                    image_url TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    region TEXT,
+                    category TEXT,
+                    title_ar TEXT,
+                    title_fr TEXT,
+                    title_en TEXT,
+                    title_es TEXT,
+                    content_ar TEXT,
+                    content_fr TEXT,
+                    content_en TEXT,
+                    content_es TEXT,
+                    image_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """
         else:
-            # Fallback SQLite
             query = """
                 CREATE TABLE IF NOT EXISTS articles (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, region TEXT, category TEXT,
-                    title_ar TEXT, title_fr TEXT, title_en TEXT, title_es TEXT,
-                    content_ar TEXT, content_fr TEXT, content_en TEXT, content_es TEXT,
-                    image_url TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    region TEXT,
+                    category TEXT,
+                    title_ar TEXT,
+                    title_fr TEXT,
+                    title_en TEXT,
+                    title_es TEXT,
+                    content_ar TEXT,
+                    content_fr TEXT,
+                    content_en TEXT,
+                    content_es TEXT,
+                    image_url TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
             """
 
         cur.execute(query)
         conn.commit()
         conn.close()
+
         print("-> Database Ready")
+
     except Exception as e:
-        # Ma khassnach app tsala b l-crash total ila DB ma jatch dghya f startup
         print(f"!! init_db failed: {e}")
 
-# Zid: kaytnfed mباشرة m3a l-import dyal module, machi ghi f __main__.
-# Hadi li khassa bach ykhdem m3a gunicorn (li ma kaydkhelch l `if __name__ == "__main__"`).
+
+# IMPORTANT : appelé même avec Gunicorn
+init_db()
 
 
 # ================== 3. AI & IMAGE GENERATION ==================
@@ -216,7 +233,7 @@ HTML_TEMPLATE = """
 if __name__ == "__main__":
     # init_db() rah t-appelat déjà f fo9 (module level)
     # Lancement du scheduler
-    init_db()
+    # init_db()
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_robot, 'interval', hours=6)
     scheduler.start()
