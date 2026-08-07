@@ -1662,7 +1662,8 @@ HOME_TEMPLATE = """
 
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0">
-
+<link rel="icon" type="image/png"
+          href="{{ url_for('static', filename='logo.png') }}">
 <title>Corvex News - {{ country_name }}</title>
 
 <style>
