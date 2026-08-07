@@ -35,6 +35,7 @@ app = Flask(__name__)
 GA_ID = os.getenv("GA_ID", "")
 ADSENSE_CLIENT = os.getenv("ADSENSE_CLIENT", "")
 DATABASE_URL = os.getenv("DATABASE_URL")
+SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
 
 GROQ_KEYS = [
     os.getenv("GROQ_API_KEY1"),
@@ -237,6 +238,33 @@ LANGUAGES = {
     "en": "English",
     "es": "Español"
 }
+
+
+# ============================================================
+# SEO HELPERS
+# ============================================================
+
+def absolute_url(path="/"):
+    if not SITE_URL:
+        return path
+    return f"{SITE_URL}{path}"
+
+
+def seo_description(text, max_length=160):
+    if not text:
+        return "Corvex News — Latest international news and updates."
+    clean = " ".join(str(text).split())
+    if len(clean) <= max_length:
+        return clean
+    return clean[:max_length - 3].rsplit(" ", 1)[0] + "..."
+
+
+def article_path(article_id, country, lang):
+    return (
+        f"/article/{article_id}"
+        f"?country={urllib.parse.quote(country)}"
+        f"&lang={urllib.parse.quote(lang)}"
+    )
 
 
 # ============================================================
@@ -1437,10 +1465,19 @@ def home():
         current_country=country,
 
         current_language=lang,
-        ga_id=GA_ID,  # zedna hadi
-        adsense_client=ADSENSE_CLIENT, # w hadi
-
-        country_name=country_info["name"]
+        ga_id=GA_ID,
+        adsense_client=ADSENSE_CLIENT,
+        country_name=country_info["name"],
+        site_url=SITE_URL,
+        canonical_url=absolute_url(
+            f"/?country={urllib.parse.quote(country)}&lang={urllib.parse.quote(lang)}"
+        ),
+        absolute_home_urls={
+            code: absolute_url(
+                f"/?country={urllib.parse.quote(country)}&lang={urllib.parse.quote(code)}"
+            )
+            for code in LANGUAGES
+        }
     )
 
 
@@ -1619,6 +1656,81 @@ def set_language(lang):
 
 
 # ============================================================
+# SEO ROUTES
+# ============================================================
+
+@app.route("/robots.txt")
+def robots_txt():
+    sitemap_url = absolute_url("/sitemap.xml")
+    return (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /health\n"
+        "Disallow: /run-robot\n\n"
+        f"Sitemap: {sitemap_url}\n"
+    ), 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    urls = []
+
+    # Home pages for each configured country/language.
+    for country_code in COUNTRIES:
+        for lang_code in LANGUAGES:
+            urls.append(
+                absolute_url(
+                    f"/?country={urllib.parse.quote(country_code)}"
+                    f"&lang={urllib.parse.quote(lang_code)}"
+                )
+            )
+
+    # Article URLs.
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, country, created_at
+            FROM articles
+            ORDER BY created_at DESC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        for article_id, country_code, created_at in rows:
+            for lang_code in LANGUAGES:
+                urls.append(
+                    absolute_url(
+                        article_path(article_id, country_code, lang_code)
+                    )
+                )
+    except Exception as e:
+        print(f"!! Sitemap database error: {e}")
+
+    # Remove duplicates while preserving order.
+    urls = list(dict.fromkeys(urls))
+
+    parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+    ]
+
+    for url in urls:
+        parts.append(
+            "<url><loc>"
+            + url.replace("&", "&amp;")
+            + "</loc></url>"
+        )
+
+    parts.append("</urlset>")
+
+    return "\n".join(parts), 200, {
+        "Content-Type": "application/xml; charset=utf-8"
+    }
+
+
+# ============================================================
 # MANUAL ROBOT TEST
 # ============================================================
 
@@ -1685,6 +1797,54 @@ HOME_TEMPLATE = """
     {% endif %}
 
 <title>Corvex News - {{ country_name }}</title>
+
+<meta name="description"
+      content="Latest news and updates from {{ country_name }} on Corvex News.">
+
+<meta name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+
+<link rel="canonical" href="{{ canonical_url }}">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Corvex News - {{ country_name }}">
+<meta property="og:description"
+      content="Latest news and updates from {{ country_name }} on Corvex News.">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:site_name" content="Corvex News">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Corvex News - {{ country_name }}">
+<meta name="twitter:description"
+      content="Latest news and updates from {{ country_name }} on Corvex News.">
+
+<!-- Hreflang -->
+{% for lang_code in languages.keys() %}
+<link rel="alternate"
+      hreflang="{{ lang_code }}"
+      href="{{ absolute_home_urls[lang_code] }}">
+{% endfor %}
+<link rel="alternate"
+      hreflang="x-default"
+      href="{{ absolute_home_urls['en'] }}">
+
+<!-- Website structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Corvex News",
+  "url": "{{ site_url }}",
+  "description": "International news website.",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "{{ site_url }}/?lang={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>
 
 
 <style>
@@ -2102,7 +2262,48 @@ ARTICLE_TEMPLATE = """
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0">
 
-<title>{{ article.title }}</title>
+<title>{{ article.title }} | Corvex News</title>
+
+<meta name="description"
+      content="{{ article_description }}">
+
+<meta name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+
+<link rel="canonical" href="{{ canonical_url }}">
+
+<!-- Open Graph -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{ article.title }}">
+<meta property="og:description" content="{{ article_description }}">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:site_name" content="Corvex News">
+{% if article.image %}
+<meta property="og:image" content="{{ article.image }}">
+{% endif %}
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ article.title }}">
+<meta name="twitter:description" content="{{ article_description }}">
+{% if article.image %}
+<meta name="twitter:image" content="{{ article.image }}">
+{% endif %}
+
+<!-- Hreflang -->
+{% for lang_code, lang_url in alternate_urls.items() %}
+<link rel="alternate"
+      hreflang="{{ lang_code }}"
+      href="{{ lang_url }}">
+{% endfor %}
+<link rel="alternate"
+      hreflang="x-default"
+      href="{{ alternate_urls['en'] }}">
+
+<!-- NewsArticle structured data -->
+<script type="application/ld+json">
+{{ article_schema | safe }}
+</script>
 
 <style>
 
@@ -2415,4 +2616,3 @@ if __name__ == "__main__":
         port=port,
         debug=False
     )
-#
