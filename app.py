@@ -5,9 +5,9 @@ import time
 import urllib.parse
 
 import feedparser
-import google.generativeai as genai
 
 from flask import Flask, render_template_string, request
+from groq import Groq
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 
@@ -23,43 +23,43 @@ app = Flask(__name__)
 # 2. CONFIGURATION
 # ============================================================
 
-# ------------------------------------------------------------
-# Gemini API Keys
-# Railway Variables:
-#
-# GEMINI_KEY1
-# GEMINI_KEY2
-# GEMINI_KEY3
-# GEMINI_KEY4
-# GEMINI_KEY5
-# ------------------------------------------------------------
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-API_KEYS = [
-    os.getenv(f"GEMINI_KEY{i}")
-    for i in range(1, 6)
-]
-
-# Remove empty keys
-API_KEYS = [key for key in API_KEYS if key]
-
-current_key_index = 0
-
-
-# ------------------------------------------------------------
-# Database
-# ------------------------------------------------------------
-
-DB_URL = os.getenv("DATABASE_URL")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 GA_ID = os.getenv("GA_ID", "")
 ADSENSE_ID = os.getenv("ADSENSE_ID", "")
 
 
 # ============================================================
-# 3. REGIONS / LANGUAGES
+# 3. GROQ
+# ============================================================
+
+if GROQ_API_KEY:
+
+    groq_client = Groq(
+        api_key=GROQ_API_KEY
+    )
+
+    print("-> Groq API Key detected")
+
+else:
+
+    groq_client = None
+
+    print("!! GROQ_API_KEY not found")
+
+
+# Model actuel
+GROQ_MODEL = "openai/gpt-oss-20b"
+
+
+# ============================================================
+# 4. REGIONS
 # ============================================================
 
 REGIONS = {
+
     "global": {
         "ar": "العالم",
         "fr": "Monde",
@@ -94,38 +94,39 @@ REGIONS = {
         "en": "Gulf",
         "es": "Golfo"
     }
+
 }
 
 
 LANGUAGES = {
+
     "ar": "العربية",
     "fr": "FR",
     "en": "EN",
     "es": "ES"
+
 }
 
 
 # ============================================================
-# 4. DATABASE CONNECTION
+# 5. DATABASE
 # ============================================================
 
 def get_db_connection():
 
-    # --------------------------------------------------------
-    # Supabase / PostgreSQL
-    # --------------------------------------------------------
-
-    if DB_URL:
+    # PostgreSQL / Supabase
+    if DATABASE_URL:
 
         import psycopg
 
-        return psycopg.connect(DB_URL)
+        return psycopg.connect(
+            DATABASE_URL
+        )
 
-    # --------------------------------------------------------
     # SQLite fallback
-    # --------------------------------------------------------
-
-    conn = sqlite3.connect("corvex.db")
+    conn = sqlite3.connect(
+        "corvex.db"
+    )
 
     conn.row_factory = sqlite3.Row
 
@@ -133,7 +134,7 @@ def get_db_connection():
 
 
 # ============================================================
-# 5. INITIALIZE DATABASE
+# 6. INIT DATABASE
 # ============================================================
 
 def init_db():
@@ -141,16 +142,14 @@ def init_db():
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
-        # ----------------------------------------------------
-        # PostgreSQL
-        # ----------------------------------------------------
-
-        if DB_URL:
+        if DATABASE_URL:
 
             query = """
                 CREATE TABLE IF NOT EXISTS articles (
+
                     id SERIAL PRIMARY KEY,
 
                     region TEXT,
@@ -168,18 +167,17 @@ def init_db():
 
                     image_url TEXT,
 
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at
+                    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
                 );
             """
-
-        # ----------------------------------------------------
-        # SQLite
-        # ----------------------------------------------------
 
         else:
 
             query = """
                 CREATE TABLE IF NOT EXISTS articles (
+
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
                     region TEXT,
@@ -197,7 +195,9 @@ def init_db():
 
                     image_url TEXT,
 
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    created_at
+                    DATETIME DEFAULT CURRENT_TIMESTAMP
+
                 );
             """
 
@@ -206,113 +206,184 @@ def init_db():
         conn.commit()
 
         cur.close()
+
         conn.close()
 
         print("-> Database Ready")
 
     except Exception as e:
 
-        print(f"!! init_db failed: {e}")
+        print(
+            f"!! init_db failed: {e}"
+        )
 
 
-# ============================================================
-# IMPORTANT
-# This runs with Gunicorn too.
-# ============================================================
+# IMPORTANT:
+# Works with Gunicorn too.
 
 init_db()
 
 
 # ============================================================
-# 6. GEMINI
+# 7. GROQ GENERATION
 # ============================================================
 
-def generate_with_fallback(prompt):
+def generate_with_groq(prompt):
 
-    global current_key_index
+    if not groq_client:
 
-    if not API_KEYS:
-
-        print("!! No Gemini API Keys found.")
+        print(
+            "!! GROQ_API_KEY is missing"
+        )
 
         return None
 
-    # Try every available API key
-    for _ in range(len(API_KEYS)):
+    try:
+
+        print(
+            f"-> Using Groq model: {GROQ_MODEL}"
+        )
+
+        response = groq_client.chat.completions.create(
+
+            model=GROQ_MODEL,
+
+            messages=[
+                {
+                    "role": "system",
+                    "content":
+                    "You are a professional international news journalist."
+                },
+
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+
+            temperature=0.7,
+
+            max_tokens=2500
+
+        )
+
+        if not response.choices:
+
+            print(
+                "!! Groq returned no choices"
+            )
+
+            return None
+
+        content = (
+            response
+            .choices[0]
+            .message
+            .content
+        )
+
+        if not content:
+
+            print(
+                "!! Groq returned empty content"
+            )
+
+            return None
+
+        return content.strip()
+
+    except Exception as e:
+
+        print(
+            f"!! Groq API error: {e}"
+        )
+
+        return None
+
+
+# ============================================================
+# 8. CLEAN JSON
+# ============================================================
+
+def clean_json(text):
+
+    if not text:
+
+        return None
+
+    text = text.strip()
+
+    # Remove markdown fences
+    text = text.replace(
+        "```json",
+        ""
+    )
+
+    text = text.replace(
+        "```JSON",
+        ""
+    )
+
+    text = text.replace(
+        "```",
+        ""
+    )
+
+    text = text.strip()
+
+    # Try direct JSON
+    try:
+
+        return json.loads(text)
+
+    except Exception:
+
+        pass
+
+    # Try extracting JSON
+    start = text.find("{")
+
+    end = text.rfind("}")
+
+    if start != -1 and end != -1:
 
         try:
 
-            current_key = API_KEYS[current_key_index]
-
-            print(
-                f"-> Using Gemini API key #{current_key_index + 1}"
+            return json.loads(
+                text[start:end + 1]
             )
 
-            genai.configure(
-                api_key=current_key
-            )
+        except Exception:
 
-            model = genai.GenerativeModel(
-                "gemini-1.5-flash-latest"
-            )
-
-            response = model.generate_content(prompt)
-
-            if response and response.text:
-
-                return response.text
-
-            print("!! Gemini returned empty response.")
-
-        except Exception as e:
-
-            print(
-                f"!! Key #{current_key_index + 1} failed: {e}"
-            )
-
-            # Move to next key
-            current_key_index = (
-                current_key_index + 1
-            ) % len(API_KEYS)
-
-            time.sleep(2)
-
-    print("!! All Gemini API keys failed.")
+            pass
 
     return None
 
 
 # ============================================================
-# 7. IMAGE GENERATION
-# ============================================================
-
-def generate_image(prompt_text):
-
-    clean_prompt = urllib.parse.quote(
-        prompt_text
-        + ", photorealistic, 8k, professional news photo"
-    )
-
-    return (
-        f"https://image.pollinations.ai/prompt/{clean_prompt}"
-    )
-
-
-# ============================================================
-# 8. GOOGLE TRENDS
+# 9. GOOGLE TRENDS
 # ============================================================
 
 def get_trends(region):
 
     geo_map = {
+
+        "global": "",
+
         "usa": "US",
+
         "eu": "GB",
+
         "africa": "ZA",
-        "khalij": "SA",
-        "global": ""
+
+        "khalij": "SA"
+
     }
 
-    geo = geo_map.get(region, "")
+    geo = geo_map.get(
+        region,
+        ""
+    )
 
     if geo:
 
@@ -330,11 +401,16 @@ def get_trends(region):
 
     try:
 
-        feed = feedparser.parse(url)
+        feed = feedparser.parse(
+            url
+        )
 
         titles = [
+
             entry.title
+
             for entry in feed.entries[:3]
+
         ]
 
         if titles:
@@ -348,130 +424,201 @@ def get_trends(region):
     except Exception as e:
 
         print(
-            f"!! Google Trends failed for {region}: {e}"
+            f"!! Google Trends error: {e}"
         )
 
     # Fallback
     return [
+
         "Artificial Intelligence",
+
         "Technology News",
+
         "Future of Technology"
+
     ]
 
 
 # ============================================================
-# 9. CLEAN GEMINI JSON
+# 10. GENERATE ARTICLE
 # ============================================================
 
-def clean_gemini_json(raw_text):
-
-    if not raw_text:
-        return None
-
-    text = raw_text.strip()
-
-    # Remove Markdown code blocks
-    text = text.replace("```json", "")
-    text = text.replace("```JSON", "")
-    text = text.replace("```", "")
-
-    text = text.strip()
-
-    try:
-
-        return json.loads(text)
-
-    except Exception:
-
-        # Try to find JSON between { }
-        start = text.find("{")
-        end = text.rfind("}")
-
-        if start != -1 and end != -1:
-
-            try:
-
-                return json.loads(
-                    text[start:end + 1]
-                )
-
-            except Exception:
-
-                return None
-
-    return None
-
-
-# ============================================================
-# 10. TRANSLATION
-# ============================================================
-
-def translate_article(title, content, language):
+def generate_article(topic):
 
     prompt = f"""
-Translate the following news article to {language}.
+Write a high-quality news article about:
 
-Return ONLY this format:
+{topic}
 
-TITLE
-CONTENT
+Requirements:
 
-Do not add explanations.
-Do not add Markdown.
-Do not add labels like "TITLE:" or "CONTENT:".
+- Professional journalism style.
+- Informative and engaging.
+- Do not invent specific facts, numbers or quotes.
+- If the topic is broad, write a general technology news article.
+- Article should be around 500-700 words.
+
+Return ONLY valid JSON.
+
+Use exactly this structure:
+
+{{
+    "title": "article title",
+    "content": "full article",
+    "img_prompt": "professional realistic news image prompt",
+    "cat": "technology"
+}}
+
+IMPORTANT:
+
+- Valid JSON only.
+- Use double quotes.
+- No Markdown.
+- No ```json.
+"""
+
+    raw = generate_with_groq(
+        prompt
+    )
+
+    if not raw:
+
+        return None
+
+    data = clean_json(
+        raw
+    )
+
+    if not data:
+
+        print(
+            "!! Could not parse article JSON"
+        )
+
+        print(
+            f"Raw response: {raw[:500]}"
+        )
+
+        return None
+
+    return data
+
+
+# ============================================================
+# 11. TRANSLATION
+# ============================================================
+
+def translate_article(
+    title,
+    content,
+    language
+):
+
+    prompt = f"""
+Translate this news article into {language}.
+
+Preserve the meaning and facts.
+
+Return ONLY valid JSON:
+
+{{
+    "title": "translated title",
+    "content": "translated article"
+}}
 
 Original title:
+
 {title}
 
-Original content:
+Original article:
+
 {content}
 """
 
-    result = generate_with_fallback(prompt)
+    raw = generate_with_groq(
+        prompt
+    )
 
-    if not result:
+    if not raw:
 
         return None, None
 
-    parts = result.strip().split("\n", 1)
+    data = clean_json(
+        raw
+    )
 
-    translated_title = parts[0].strip()
+    if not data:
 
-    if len(parts) > 1:
+        return None, None
 
-        translated_content = parts[1].strip()
+    translated_title = data.get(
+        "title"
+    )
 
-    else:
+    translated_content = data.get(
+        "content"
+    )
 
-        translated_content = result.strip()
-
-    return translated_title, translated_content
+    return (
+        translated_title,
+        translated_content
+    )
 
 
 # ============================================================
-# 11. SAVE ARTICLE
+# 12. IMAGE URL
+# ============================================================
+
+def generate_image(prompt):
+
+    if not prompt:
+
+        prompt = "technology news"
+
+    clean_prompt = urllib.parse.quote(
+
+        prompt
+        + ", photorealistic, professional journalism photography, realistic news photo"
+
+    )
+
+    return (
+        "https://image.pollinations.ai/prompt/"
+        + clean_prompt
+    )
+
+
+# ============================================================
+# 13. SAVE ARTICLE
 # ============================================================
 
 def save_article(
+
     region,
+
     category,
+
     title_ar,
     title_fr,
     title_en,
     title_es,
+
     content_ar,
     content_fr,
     content_en,
     content_es,
+
     image_url
+
 ):
 
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
-        if DB_URL:
+        if DATABASE_URL:
 
             placeholder = "%s"
 
@@ -480,41 +627,62 @@ def save_article(
             placeholder = "?"
 
         columns = """
+
             region,
             category,
+
             title_ar,
             title_fr,
             title_en,
             title_es,
+
             content_ar,
             content_fr,
             content_en,
             content_es,
+
             image_url
+
         """
 
         values = (
+
             region,
+
             category,
+
             title_ar,
+
             title_fr,
+
             title_en,
+
             title_es,
+
             content_ar,
+
             content_fr,
+
             content_en,
+
             content_es,
+
             image_url
+
         )
 
         placeholders = ",".join(
+
             [placeholder] * 11
+
         )
 
         query = f"""
+
             INSERT INTO articles
             ({columns})
             VALUES ({placeholders})
+
         """
 
         cur.execute(
@@ -525,10 +693,11 @@ def save_article(
         conn.commit()
 
         cur.close()
+
         conn.close()
 
         print(
-            f"-> Saved: {title_en[:60]}"
+            f"-> Saved: {title_en[:80]}"
         )
 
         return True
@@ -543,41 +712,32 @@ def save_article(
 
 
 # ============================================================
-# 12. ROBOT
+# 14. ROBOT
 # ============================================================
 
 def run_robot():
 
     print("")
-    print("=" * 60)
+    print("=" * 70)
     print(
         f"[{datetime.now()}] ROBOT STARTED"
     )
-    print("=" * 60)
-
-    # --------------------------------------------------------
-    # Loop through regions
-    # --------------------------------------------------------
+    print("=" * 70)
+    print("")
 
     for region in REGIONS.keys():
 
-        print("")
         print(
             f"-> Processing region: {region}"
         )
 
-        # ----------------------------------------------------
-        # Get Google Trends
-        # ----------------------------------------------------
-
-        topics = get_trends(region)
-
-        # ----------------------------------------------------
-        # Process each topic
-        # ----------------------------------------------------
+        topics = get_trends(
+            region
+        )
 
         for topic in topics:
 
+            print("")
             print(
                 f"-> Processing topic: {topic}"
             )
@@ -586,74 +746,30 @@ def run_robot():
             # Generate English article
             # ------------------------------------------------
 
-            prompt = f"""
-You are a professional international news journalist.
-
-Write a high-quality news article about:
-
-{topic}
-
-The article should be factual, informative and engaging.
-
-Return ONLY valid JSON.
-
-Use EXACTLY this structure:
-
-{{
-    "title": "article title",
-    "content": "full article content",
-    "img_prompt": "image generation prompt",
-    "cat": "technology"
-}}
-
-IMPORTANT:
-
-- Return valid JSON only.
-- Use double quotes.
-- No Markdown.
-- No ```json.
-"""
-
-            raw_response = generate_with_fallback(
-                prompt
-            )
-
-            if not raw_response:
-
-                print(
-                    "!! No Gemini response. Skipping topic."
-                )
-
-                continue
-
-            # ------------------------------------------------
-            # Parse JSON
-            # ------------------------------------------------
-
-            data = clean_gemini_json(
-                raw_response
+            data = generate_article(
+                topic
             )
 
             if not data:
 
                 print(
-                    "!! Invalid JSON from Gemini."
+                    "!! Article generation failed"
                 )
 
                 continue
 
-            # ------------------------------------------------
-            # Get English article
-            # ------------------------------------------------
-
-            title_en = data.get(
-                "title",
-                ""
+            title_en = str(
+                data.get(
+                    "title",
+                    ""
+                )
             ).strip()
 
-            content_en = data.get(
-                "content",
-                ""
+            content_en = str(
+                data.get(
+                    "content",
+                    ""
+                )
             ).strip()
 
             category = data.get(
@@ -661,46 +777,76 @@ IMPORTANT:
                 "technology"
             )
 
-            if not title_en or not content_en:
+            if not title_en:
 
                 print(
-                    "!! Missing title/content."
+                    "!! Empty article title"
                 )
 
                 continue
+
+            if not content_en:
+
+                print(
+                    "!! Empty article content"
+                )
+
+                continue
+
+            print(
+                f"-> Article generated: {title_en}"
+            )
 
             # ------------------------------------------------
             # Arabic
             # ------------------------------------------------
 
-            title_ar, content_ar = translate_article(
-                title_en,
-                content_en,
-                "Arabic"
+            print(
+                "-> Translating Arabic..."
+            )
+
+            title_ar, content_ar = (
+                translate_article(
+                    title_en,
+                    content_en,
+                    "Arabic"
+                )
             )
 
             # ------------------------------------------------
             # French
             # ------------------------------------------------
 
-            title_fr, content_fr = translate_article(
-                title_en,
-                content_en,
-                "French"
+            print(
+                "-> Translating French..."
+            )
+
+            title_fr, content_fr = (
+                translate_article(
+                    title_en,
+                    content_en,
+                    "French"
+                )
             )
 
             # ------------------------------------------------
             # Spanish
             # ------------------------------------------------
 
-            title_es, content_es = translate_article(
-                title_en,
-                content_en,
-                "Spanish"
+            print(
+                "-> Translating Spanish..."
+            )
+
+            title_es, content_es = (
+                translate_article(
+                    title_en,
+                    content_en,
+                    "Spanish"
+                )
             )
 
             # ------------------------------------------------
-            # Fallback if translation fails
+            # Translation fallback
             # ------------------------------------------------
 
             if not title_ar:
@@ -739,7 +885,9 @@ IMPORTANT:
             # ------------------------------------------------
 
             save_article(
+
                 region=region,
+
                 category=category,
 
                 title_ar=title_ar,
@@ -753,19 +901,20 @@ IMPORTANT:
                 content_es=content_es,
 
                 image_url=image_url
+
             )
 
     print("")
-    print("=" * 60)
+    print("=" * 70)
     print(
         f"[{datetime.now()}] ROBOT FINISHED"
     )
-    print("=" * 60)
+    print("=" * 70)
     print("")
 
 
 # ============================================================
-# 13. ROBOT SCHEDULER
+# 15. SCHEDULER
 # ============================================================
 
 scheduler = BackgroundScheduler(
@@ -773,24 +922,41 @@ scheduler = BackgroundScheduler(
 )
 
 scheduler.add_job(
+
     run_robot,
+
     trigger="interval",
+
     hours=6,
 
-    # IMPORTANT:
-    # Robot runs immediately after Railway starts
-    next_run_time=datetime.now()
+    # Run immediately after deployment
+    next_run_time=datetime.now(),
+
+    # Prevent overlapping robot executions
+    max_instances=1,
+
+    # If one execution is missed, don't run many times
+    coalesce=True
+
 )
 
 scheduler.start()
 
-print("-> Robot Scheduler Started")
-print("-> First robot execution will start now")
-print("-> Next executions: every 6 hours")
+print(
+    "-> Robot Scheduler Started"
+)
+
+print(
+    "-> First robot execution will start now"
+)
+
+print(
+    "-> Next executions: every 6 hours"
+)
 
 
 # ============================================================
-# 14. HOME ROUTE
+# 16. HOME
 # ============================================================
 
 @app.route("/")
@@ -806,7 +972,6 @@ def home():
         "en"
     )
 
-    # Security
     if region not in REGIONS:
 
         region = "global"
@@ -820,12 +985,8 @@ def home():
     try:
 
         conn = get_db_connection()
-        cur = conn.cursor()
 
-        # ----------------------------------------------------
-        # Column names are controlled by LANGUAGES
-        # so there is no SQL injection here.
-        # ----------------------------------------------------
+        cur = conn.cursor()
 
         title_column = (
             f"title_{lang}"
@@ -835,7 +996,7 @@ def home():
             f"content_{lang}"
         )
 
-        if DB_URL:
+        if DATABASE_URL:
 
             placeholder = "%s"
 
@@ -844,39 +1005,60 @@ def home():
             placeholder = "?"
 
         query = f"""
+
             SELECT
+
                 id,
+
                 {title_column},
+
                 {content_column},
+
                 image_url,
+
                 created_at
+
             FROM articles
+
             WHERE region = {placeholder}
+
             ORDER BY created_at DESC
+
             LIMIT 20
+
         """
 
         cur.execute(
+
             query,
+
             (region,)
+
         )
 
         rows = cur.fetchall()
 
         cur.close()
+
         conn.close()
 
         for row in rows:
 
             articles.append({
+
                 "id": row[0],
+
                 "title": row[1],
-                "content": (
-                    (row[2] or "")[:300]
-                    + "..."
-                ),
+
+                "content":
+                    (
+                        row[2] or ""
+                    )[:300] + "...",
+
                 "img": row[3],
+
                 "created_at": row[4]
+
             })
 
     except Exception as e:
@@ -885,11 +1067,8 @@ def home():
             f"!! home() DB query failed: {e}"
         )
 
-    page_title = REGIONS[
-        region
-    ][lang]
-
     return render_template_string(
+
         HTML_TEMPLATE,
 
         articles=articles,
@@ -902,31 +1081,44 @@ def home():
 
         lang=lang,
 
-        page_title=page_title,
+        page_title=
+            REGIONS[region][lang],
 
         ga_id=GA_ID,
 
         adsense_id=ADSENSE_ID
+
     )
 
 
 # ============================================================
-# 15. HEALTH CHECK
+# 17. HEALTH CHECK
 # ============================================================
 
 @app.route("/health")
 def health():
 
     return {
+
         "status": "ok",
-        "database": bool(DB_URL),
-        "gemini_keys": len(API_KEYS),
-        "robot": scheduler.running
+
+        "database":
+            bool(DATABASE_URL),
+
+        "groq":
+            bool(GROQ_API_KEY),
+
+        "model":
+            GROQ_MODEL,
+
+        "robot":
+            scheduler.running
+
     }
 
 
 # ============================================================
-# 16. SIMPLE FRONTEND
+# 18. FRONTEND
 # ============================================================
 
 HTML_TEMPLATE = """
@@ -947,13 +1139,6 @@ HTML_TEMPLATE = """
         {{ page_title }} - Corvex
     </title>
 
-    {% if adsense_id %}
-    <meta
-        name="google-adsense-account"
-        content="{{ adsense_id }}"
-    >
-    {% endif %}
-
     <style>
 
         * {
@@ -961,7 +1146,9 @@ HTML_TEMPLATE = """
         }
 
         body {
+
             margin: 0;
+
             font-family:
                 Arial,
                 Helvetica,
@@ -970,40 +1157,60 @@ HTML_TEMPLATE = """
             background: #f5f7fb;
 
             color: #111827;
+
         }
 
         header {
+
             background: #111827;
+
             color: white;
 
             padding: 20px;
+
         }
 
         .header-inner {
+
             max-width: 1200px;
+
             margin: auto;
 
             display: flex;
-            justify-content: space-between;
+
+            justify-content:
+                space-between;
+
             align-items: center;
 
             gap: 20px;
+
             flex-wrap: wrap;
+
         }
 
         .logo {
+
             font-size: 28px;
+
             font-weight: bold;
+
         }
 
         .nav {
+
             display: flex;
+
             gap: 8px;
+
             flex-wrap: wrap;
+
         }
 
         .nav a {
+
             color: white;
+
             text-decoration: none;
 
             padding: 8px 12px;
@@ -1011,28 +1218,39 @@ HTML_TEMPLATE = """
             border-radius: 8px;
 
             background: #374151;
+
         }
 
         .nav a:hover {
+
             background: #4b5563;
+
         }
 
         main {
+
             max-width: 1200px;
+
             margin: 30px auto;
 
             padding: 0 20px;
+
         }
 
         .title {
+
             margin-bottom: 25px;
+
         }
 
         .title h1 {
+
             margin-bottom: 5px;
+
         }
 
         .articles {
+
             display: grid;
 
             grid-template-columns:
@@ -1042,9 +1260,11 @@ HTML_TEMPLATE = """
                 );
 
             gap: 20px;
+
         }
 
         .article {
+
             background: white;
 
             border-radius: 14px;
@@ -1054,34 +1274,47 @@ HTML_TEMPLATE = """
             box-shadow:
                 0 5px 20px
                 rgba(0,0,0,.08);
+
         }
 
         .article img {
+
             width: 100%;
+
             height: 200px;
 
             object-fit: cover;
 
             display: block;
+
         }
 
         .article-body {
+
             padding: 18px;
+
         }
 
         .article h2 {
+
             font-size: 20px;
 
             margin-top: 0;
+
             margin-bottom: 12px;
+
         }
 
         .article p {
+
             color: #4b5563;
+
             line-height: 1.6;
+
         }
 
         .empty {
+
             background: white;
 
             padding: 40px;
@@ -1089,9 +1322,11 @@ HTML_TEMPLATE = """
             border-radius: 14px;
 
             text-align: center;
+
         }
 
         footer {
+
             margin-top: 50px;
 
             padding: 30px;
@@ -1101,6 +1336,7 @@ HTML_TEMPLATE = """
             color: white;
 
             text-align: center;
+
         }
 
     </style>
@@ -1109,6 +1345,7 @@ HTML_TEMPLATE = """
 
 
 <body>
+
 
 <header>
 
@@ -1125,7 +1362,9 @@ HTML_TEMPLATE = """
                 <a
                     href="/?region={{ region_id }}&lang={{ lang }}"
                 >
+
                     {{ region_names[lang] }}
+
                 </a>
 
             {% endfor %}
@@ -1199,12 +1438,13 @@ HTML_TEMPLATE = """
 
             <p>
                 The robot is generating the first articles.
-                Please refresh the page in a moment.
+                Refresh the page in a moment.
             </p>
 
         </div>
 
     {% endif %}
+
 
 </main>
 
@@ -1225,7 +1465,7 @@ HTML_TEMPLATE = """
 
 
 # ============================================================
-# 17. LOCAL DEVELOPMENT
+# 19. LOCAL DEVELOPMENT
 # ============================================================
 
 if __name__ == "__main__":
@@ -1238,6 +1478,9 @@ if __name__ == "__main__":
     )
 
     app.run(
+
         host="0.0.0.0",
+
         port=port
+
     )
