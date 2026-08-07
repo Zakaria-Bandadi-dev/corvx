@@ -27,10 +27,10 @@ LANGUAGES = {'ar': 'العربية', 'fr': 'FR', 'en': 'EN', 'es': 'ES'}
 # ================== 2. DATABASE HELPER ==================
 def get_db_connection():
     if DB_URL:
-        import psycopg2
-        return psycopg2.connect(DB_URL)
+        import psycopg # bdel mn psycopg2
+        return psycopg.connect(DB_URL) # psycopg3 kay9bl URL nichan
     else:
-        # Fallback sur SQLite pour le test local
+        # Fallback SQLite
         conn = sqlite3.connect('corvex.db')
         conn.row_factory = sqlite3.Row
         return conn
