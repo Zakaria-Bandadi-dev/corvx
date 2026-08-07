@@ -32,7 +32,8 @@ app = Flask(__name__)
 # ============================================================
 # ENVIRONMENT VARIABLES
 # ============================================================
-
+GA_ID = os.getenv("GA_ID", "")
+ADSENSE_CLIENT = os.getenv("ADSENSE_CLIENT", "")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 GROQ_KEYS = [
@@ -1436,6 +1437,8 @@ def home():
         current_country=country,
 
         current_language=lang,
+        ga_id=GA_ID,  # zedna hadi
+        adsense_client=ADSENSE_CLIENT, # w hadi
 
         country_name=country_info["name"]
     )
@@ -1664,7 +1667,25 @@ HOME_TEMPLATE = """
       content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/png"
           href="{{ url_for('static', filename='logo.png') }}">
+ <!-- 1. Google Analytics -->
+    {% if ga_id %}
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '{{ ga_id }}');
+    </script>
+    {% endif %}
+
+    <!-- 2. Google AdSense -->
+    {% if adsense_client %}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+     crossorigin="anonymous"></script>
+    {% endif %}
+
 <title>Corvex News - {{ country_name }}</title>
+
 
 <style>
 
