@@ -2372,7 +2372,7 @@ select {
             <h2><span class="robot-dot"></span> No news yet</h2>
 
             <p>
-                Le robot est en train de collecter les dernières news
+                En train de collecter les dernières news
                 pour {{ country_name }}. Revenez dans quelques minutes.
             </p>
 
@@ -2394,14 +2394,14 @@ function refreshRobotStatus() {
 
             if (data.running) {
                 banner.classList.add('is-running');
-                text.textContent = '🤖 Notre robot IA est en train de récupérer et générer les news'
+                text.textContent = 'En train de récupérer et générer les news'
                     + (data.current_country_name ? ' (actuellement : ' + data.current_country_name + ')' : '')
                     + ' en direct...';
             } else {
                 banner.classList.remove('is-running');
                 if (data.last_run_end) {
                     const d = new Date(data.last_run_end);
-                    text.textContent = '🤖 Contenu généré et traduit automatiquement par notre robot IA — dernière mise à jour : '
+                    text.textContent = 'Contenu généré et traduit  — dernière mise à jour : '
                         + d.toLocaleString() + ' (' + data.last_run_saved + ' nouveaux articles).';
                 }
             }
@@ -2705,7 +2705,7 @@ h1 {
     </div>
 
     <div class="disclaimer">
-        Cet article a été généré et traduit automatiquement par un robot IA
+        Cet article a été généré et traduit automatiquement par notre équipe
         à partir d'une source réelle citée ci-dessous. Il peut contenir
         des imprécisions ; consultez la source originale pour vérification.
     </div>
