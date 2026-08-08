@@ -23,6 +23,7 @@ from flask import (
 
 from groq import Groq
 from apscheduler.schedulers.background import BackgroundScheduler
+from deep_translator import GoogleTranslator
 
 # ============================================================
 # APP
@@ -1599,6 +1600,52 @@ def build_website_schema():
 # TRANSLATION
 # ============================================================
 
+def safe_translate(text, target_lang):
+    """Last-resort translation using deep-translator (Google Translate
+    backend, free, no API key). Only used when the Groq translation call
+    fails or returns bad JSON, so an article never ends up mixing
+    languages on the site."""
+    if not text:
+        return None
+
+    try:
+        text = str(text)
+        # deep-translator has a ~5000 char limit per call; chunk long text.
+        if len(text) <= 4500:
+            return GoogleTranslator(source="auto", target=target_lang).translate(text)
+
+        chunks = [text[i:i + 4500] for i in range(0, len(text), 4500)]
+        translated_chunks = []
+        for chunk in chunks:
+            translated_chunks.append(
+                GoogleTranslator(source="auto", target=target_lang).translate(chunk)
+            )
+        return " ".join(t for t in translated_chunks if t)
+
+    except Exception as e:
+        print(f"!! deep-translator fallback failed ({target_lang}): {e}")
+        return None
+
+
+def cache_translation(article_id, lang, title, content):
+    """Write a just-in-time translation back to the DB so we never
+    re-translate the same article on every page view."""
+    if lang not in LANGUAGES or lang == "en":
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE articles SET title_{lang} = %s, content_{lang} = %s WHERE id = %s",
+            (title, content, article_id)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"!! Cache translation failed: {e}")
+
+
 def translate_article(title, content, language):
     language_names = {
         "ar": "Arabic",
@@ -1635,24 +1682,41 @@ Return ONLY JSON:
 
     raw = generate_with_groq(prompt)
 
-    if not raw:
-        return None
+    data = None
 
-    try:
-        clean = raw.strip()
+    if raw:
+        try:
+            clean = raw.strip()
 
-        if clean.startswith("```"):
-            clean = clean.replace("```json", "")
-            clean = clean.replace("```", "")
-            clean = clean.strip()
+            if clean.startswith("```"):
+                clean = clean.replace("```json", "")
+                clean = clean.replace("```", "")
+                clean = clean.strip()
 
-        data = json.loads(clean)
+            data = json.loads(clean)
 
+        except Exception as e:
+            print(f"!! Groq translation JSON parse failed: {e}")
+            data = None
+
+    if data and data.get("title") and data.get("content"):
         return data
 
-    except Exception as e:
-        print(f"!! Translation failed: {e}")
-        return None
+    # Groq translation failed or returned incomplete JSON.
+    # Fall back to deep-translator (Google Translate) so the article
+    # never ends up mixing languages on the site.
+    print(f"!! Falling back to deep-translator for '{language}'")
+
+    fallback_title = safe_translate(title, language)
+    fallback_content = safe_translate(content, language)
+
+    if fallback_title or fallback_content:
+        return {
+            "title": fallback_title or title,
+            "content": fallback_content or content,
+        }
+
+    return None
 
 
 # ============================================================
@@ -1703,9 +1767,19 @@ def save_article(country, news_item, article_data, translations, audit=None, seo
         ar = translations.get("ar", {})
         fr = translations.get("fr", {})
         es = translations.get("es", {})
-        title_ar, content_ar = ar.get("title", title_en), ar.get("content", content_en)
-        title_fr, content_fr = fr.get("title", title_en), fr.get("content", content_en)
-        title_es, content_es = es.get("title", title_en), es.get("content", content_en)
+
+        def resolve_lang(lang_dict, lang_code):
+            title = lang_dict.get("title")
+            content = lang_dict.get("content")
+            if not title:
+                title = safe_translate(title_en, lang_code) or title_en
+            if not content:
+                content = safe_translate(content_en, lang_code) or content_en
+            return title, content
+
+        title_ar, content_ar = resolve_lang(ar, "ar")
+        title_fr, content_fr = resolve_lang(fr, "fr")
+        title_es, content_es = resolve_lang(es, "es")
         image_url = generate_image(article_data.get("image_prompt", news_item["title"]))
         seo_plan = seo_plan or {}
         audit = audit or {}
@@ -1901,6 +1975,8 @@ def home():
                 id,
                 {title_column},
                 {content_column},
+                title_en,
+                content_en,
                 image_url,
                 category,
                 source_name,
@@ -1919,14 +1995,29 @@ def home():
         conn.close()
 
         for row in rows:
+            article_id = row[0]
+            title = row[1]
+            content = row[2]
+            fallback_title = row[3]
+            fallback_content = row[4]
+
+            # Legacy/failed rows: the selected-language column is empty.
+            # Translate on the fly and cache it so we don't redo this
+            # on every future page view.
+            if lang != "en" and (not title or not content):
+                new_title = title or safe_translate(fallback_title, lang) or fallback_title
+                new_content = content or safe_translate(fallback_content, lang) or fallback_content
+                cache_translation(article_id, lang, new_title, new_content)
+                title, content = new_title, new_content
+
             articles.append({
-                "id": row[0],
-                "title": row[1],
-                "content": row[2] or "",
-                "image": row[3],
-                "category": row[4],
-                "source": row[5],
-                "created_at": row[6]
+                "id": article_id,
+                "title": title,
+                "content": content or "",
+                "image": row[5],
+                "category": row[6],
+                "source": row[7],
+                "created_at": row[8]
             })
 
     except Exception as e:
@@ -2034,6 +2125,8 @@ def article_detail(article_id):
                 id,
                 {title_column},
                 {content_column},
+                title_en,
+                content_en,
                 image_url,
                 category,
                 source_url,
@@ -2056,29 +2149,42 @@ def article_detail(article_id):
         conn.close()
 
         if row:
+            title = row[1]
+            content = row[2]
+            fallback_title = row[3]
+            fallback_content = row[4]
+
+            # Legacy/failed rows: the selected-language column is empty.
+            # Translate on the fly and cache it for next time.
+            if lang != "en" and (not title or not content):
+                new_title = title or safe_translate(fallback_title, lang) or fallback_title
+                new_content = content or safe_translate(fallback_content, lang) or fallback_content
+                cache_translation(article_id, lang, new_title, new_content)
+                title, content = new_title, new_content
+
             article = {
                 "id": row[0],
-                "title": row[1],
-                "content": row[2],
-                "image": row[3],
-                "category": row[4],
-                "source_url": row[5],
-                "source_name": row[6],
-                "original_title": row[7],
-                "created_at": row[8],
-                "country": row[9],
-                "seo_title": row[10],
-                "meta_description": row[11],
-                "slug": row[12],
-                "primary_keyword": row[13],
-                "secondary_keywords": row[14],
-                "search_intent": row[15],
-                "trend_score": row[16],
-                "seo_score": row[17],
-                "quality_score": row[18],
-                "seo_reason": row[19],
-                "faq": json.loads(row[20] or "[]"),
-                "schema": json.loads(row[21] or "{}")
+                "title": title,
+                "content": content,
+                "image": row[5],
+                "category": row[6],
+                "source_url": row[7],
+                "source_name": row[8],
+                "original_title": row[9],
+                "created_at": row[10],
+                "country": row[11],
+                "seo_title": row[12],
+                "meta_description": row[13],
+                "slug": row[14],
+                "primary_keyword": row[15],
+                "secondary_keywords": row[16],
+                "search_intent": row[17],
+                "trend_score": row[18],
+                "seo_score": row[19],
+                "quality_score": row[20],
+                "seo_reason": row[21],
+                "faq": json.loads(row[22] or "[]"),
+                "schema": json.loads(row[23] or "{}")
             }
 
     except Exception as e:
@@ -2679,7 +2785,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <body>
 
 <header class="site-header">
-    <div class="logo">CORVEX NEWS</div>
+    <div class="logo notranslate" translate="no">CORVEX NEWS</div>
 
     <div class="controls">
         <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
@@ -2795,7 +2901,7 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
 <body>
 
 <header class="site-header">
-    <a class="logo" href="{{ url_for('home', country=current_country, lang=current_language) }}">CORVEX NEWS</a>
+    <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">CORVEX NEWS</a>
 </header>
 
 <main>
@@ -2927,7 +3033,7 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
 <body>
 
 <header class="site-header">
-    <a class="logo" href="{{ url_for('home') }}">CORVEX NEWS</a>
+    <a class="logo notranslate" translate="no" href="{{ url_for('home') }}">CORVEX NEWS</a>
     <a href="{{ url_for('home') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الأخبار</a>
 </header>
 
