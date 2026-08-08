@@ -15,7 +15,8 @@ from flask import (
     request,
     render_template_string,
     redirect,
-    url_for
+    url_for,
+    jsonify
 )
 
 from groq import Groq
@@ -53,6 +54,19 @@ current_groq_key = 0
 
 # Prevent two robot jobs from running simultaneously
 robot_lock = Lock()
+
+# ============================================================
+# ROBOT LIVE STATUS (transparency: show visitors the robot works)
+# ============================================================
+
+robot_status = {
+    "running": False,
+    "current_country": None,
+    "last_run_start": None,
+    "last_run_end": None,
+    "last_run_saved": 0,
+    "total_articles_this_run": 0,
+}
 
 
 # ============================================================
@@ -1146,6 +1160,9 @@ def process_country(country):
         f"===================================="
     )
 
+    # Update live status so visitors can see which country is being processed
+    robot_status["current_country"] = country
+
     news = get_country_news(country)
 
     if not news:
@@ -1154,7 +1171,7 @@ def process_country(country):
             f"!! No news found for {country}"
         )
 
-        return
+        return 0
 
     saved = 0
 
@@ -1283,6 +1300,9 @@ def process_country(country):
 
             saved += 1
 
+            # Keep the live counter growing during the run
+            robot_status["total_articles_this_run"] += 1
+
         # Small pause
         time.sleep(2)
 
@@ -1290,6 +1310,8 @@ def process_country(country):
         f"-> Country {country}: "
         f"{saved} new articles saved"
     )
+
+    return saved
 
 
 # ============================================================
@@ -1307,6 +1329,12 @@ def run_robot():
         )
 
         return
+
+    # ---- mark robot as ON (visible to visitors) ----
+    robot_status["running"] = True
+    robot_status["current_country"] = None
+    robot_status["last_run_start"] = datetime.now()
+    robot_status["total_articles_this_run"] = 0
 
     try:
 
@@ -1358,6 +1386,12 @@ def run_robot():
         )
 
     finally:
+
+        # ---- mark robot as OFF, save summary for the banner ----
+        robot_status["running"] = False
+        robot_status["current_country"] = None
+        robot_status["last_run_end"] = datetime.now()
+        robot_status["last_run_saved"] = robot_status["total_articles_this_run"]
 
         robot_lock.release()
 
@@ -1477,7 +1511,14 @@ def home():
                 f"/?country={urllib.parse.quote(country)}&lang={urllib.parse.quote(code)}"
             )
             for code in LANGUAGES
-        }
+        },
+        robot_status=robot_status,
+        robot_interval=ROBOT_INTERVAL_HOURS,
+        current_country_name=(
+            COUNTRIES[robot_status["current_country"]]["name"]
+            if robot_status["current_country"] in COUNTRIES
+            else None
+        )
     )
 
 @app.route("/ads.txt")
@@ -1671,6 +1712,33 @@ def set_language(lang):
 
 
 # ============================================================
+# LIVE ROBOT STATUS (JSON) - used by the front-end badge to auto-refresh
+# ============================================================
+
+@app.route("/robot-status")
+def robot_status_json():
+
+    data = dict(robot_status)
+
+    data["last_run_start"] = (
+        robot_status["last_run_start"].isoformat()
+        if robot_status["last_run_start"] else None
+    )
+
+    data["last_run_end"] = (
+        robot_status["last_run_end"].isoformat()
+        if robot_status["last_run_end"] else None
+    )
+
+    if robot_status["current_country"] in COUNTRIES:
+        data["current_country_name"] = COUNTRIES[robot_status["current_country"]]["name"]
+    else:
+        data["current_country_name"] = None
+
+    return jsonify(data)
+
+
+# ============================================================
 # SEO ROUTES
 # ============================================================
 
@@ -1772,7 +1840,7 @@ def health():
         "status": "ok",
         "groq_keys": len(GROQ_KEYS),
         "database": bool(DATABASE_URL),
-        "robot": "running"
+        "robot": "running" if robot_status["running"] else "idle"
     }
 
 
@@ -1952,6 +2020,62 @@ select {
     color: #6b7280;
 }
 
+/* ---------------------------------------------------- */
+/* ROBOT STATUS BANNER                                   */
+/* ---------------------------------------------------- */
+
+.robot-banner {
+
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    color: #3730a3;
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.robot-banner.is-running {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    color: #065f46;
+}
+
+.robot-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #6366f1;
+    flex-shrink: 0;
+}
+
+.robot-banner.is-running .robot-dot {
+    background: #10b981;
+    animation: pulse-dot 1.2s infinite;
+}
+
+@keyframes pulse-dot {
+    0%   { box-shadow: 0 0 0 0 rgba(16,185,129,.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+    100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+
+.badge-ai {
+    display: inline-block;
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    background: #111827;
+    color: #fff;
+    margin-left: 10px;
+    vertical-align: middle;
+    font-weight: normal;
+}
+
 .grid {
 
     display: grid;
@@ -2068,6 +2192,11 @@ select {
     border-radius: 14px;
 }
 
+.no-news .robot-dot {
+    display: inline-block;
+    margin-right: 6px;
+}
+
 </style>
 
 </head>
@@ -2168,6 +2297,44 @@ select {
 
     </div>
 
+    <!-- ==================================================== -->
+    <!-- ROBOT TRANSPARENCY BANNER                              -->
+    <!-- ==================================================== -->
+
+    <div
+        id="robot-banner"
+        class="robot-banner {% if robot_status.running %}is-running{% endif %}"
+    >
+        <span class="robot-dot"></span>
+
+        <span id="robot-banner-text">
+
+        {% if robot_status.running %}
+
+            🤖 Notre robot IA est en train de récupérer et générer les news
+            {% if current_country_name %}
+                (actuellement : {{ current_country_name }})
+            {% endif %}
+            en direct...
+
+        {% elif robot_status.last_run_end %}
+
+            🤖 Contenu généré et traduit automatiquement par notre robot IA
+            — dernière mise à jour :
+            {{ robot_status.last_run_end.strftime('%d/%m/%Y %H:%M') }}
+            ({{ robot_status.last_run_saved }} nouveaux articles).
+            Prochaine mise à jour dans ~{{ robot_interval }}h.
+
+        {% else %}
+
+            🤖 Notre robot IA prépare la première collection de news,
+            merci de patienter quelques minutes...
+
+        {% endif %}
+
+        </span>
+    </div>
+
 
     {% if articles %}
 
@@ -2199,6 +2366,8 @@ select {
                     <h2>
 
                         {{ article.title }}
+
+                        <span class="badge-ai">IA</span>
 
                     </h2>
 
@@ -2240,10 +2409,11 @@ select {
 
         <div class="no-news">
 
-            <h2>No news yet</h2>
+            <h2><span class="robot-dot"></span> No news yet</h2>
 
             <p>
-                The robot is collecting the latest news.
+                Le robot est en train de collecter les dernières news
+                pour {{ country_name }}. Revenez dans quelques minutes.
             </p>
 
         </div>
@@ -2251,6 +2421,35 @@ select {
     {% endif %}
 
 </div>
+
+<script>
+// Auto-refresh the robot status banner every 20s without reloading the page
+function refreshRobotStatus() {
+    fetch('/robot-status')
+        .then(r => r.json())
+        .then(data => {
+            const banner = document.getElementById('robot-banner');
+            const text = document.getElementById('robot-banner-text');
+            if (!banner || !text) return;
+
+            if (data.running) {
+                banner.classList.add('is-running');
+                text.textContent = '🤖 Notre robot IA est en train de récupérer et générer les news'
+                    + (data.current_country_name ? ' (actuellement : ' + data.current_country_name + ')' : '')
+                    + ' en direct...';
+            } else {
+                banner.classList.remove('is-running');
+                if (data.last_run_end) {
+                    const d = new Date(data.last_run_end);
+                    text.textContent = '🤖 Contenu généré et traduit automatiquement par notre robot IA — dernière mise à jour : '
+                        + d.toLocaleString() + ' (' + data.last_run_saved + ' nouveaux articles).';
+                }
+            }
+        })
+        .catch(() => {});
+}
+setInterval(refreshRobotStatus, 20000);
+</script>
 
 
 </body>
@@ -2403,6 +2602,17 @@ header a {
     font-size: 13px;
 }
 
+.badge-ai {
+    display: inline-block;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: #111827;
+    color: #fff;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
 h1 {
 
     font-size: 38px;
@@ -2446,6 +2656,15 @@ h1 {
     color: #2563eb;
 
     text-decoration: none;
+}
+
+.disclaimer {
+    margin-top: 18px;
+    font-size: 13px;
+    color: #6b7280;
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 10px 14px;
 }
 
 </style>
@@ -2514,6 +2733,8 @@ h1 {
 
         {{ article.title }}
 
+        <span class="badge-ai">🤖 Généré par IA</span>
+
     </h1>
 
 
@@ -2521,6 +2742,12 @@ h1 {
 
         {{ article.content }}
 
+    </div>
+
+    <div class="disclaimer">
+        Cet article a été généré et traduit automatiquement par un robot IA
+        à partir d'une source réelle citée ci-dessous. Il peut contenir
+        des imprécisions ; consultez la source originale pour vérification.
     </div>
 
 
