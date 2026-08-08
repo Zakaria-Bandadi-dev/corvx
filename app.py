@@ -1,3 +1,4 @@
+````python
 import os
 import json
 import time
@@ -33,10 +34,12 @@ app = Flask(__name__)
 # ============================================================
 # ENVIRONMENT VARIABLES
 # ============================================================
+
 GA_ID = os.getenv("GA_ID", "")
 ADSENSE_CLIENT = os.getenv("ADSENSE_CLIENT", "")
 DATABASE_URL = os.getenv("DATABASE_URL")
 SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
+
 
 GROQ_KEYS = [
     os.getenv("GROQ_API_KEY1"),
@@ -46,17 +49,19 @@ GROQ_KEYS = [
     os.getenv("GROQ_API_KEY5"),
 ]
 
-# Remove empty variables
-GROQ_KEYS = [key.strip() for key in GROQ_KEYS if key and key.strip()]
+GROQ_KEYS = [
+    key.strip()
+    for key in GROQ_KEYS
+    if key and key.strip()
+]
 
-# Current Groq key
 current_groq_key = 0
 
-# Prevent two robot jobs from running simultaneously
 robot_lock = Lock()
 
+
 # ============================================================
-# ROBOT LIVE STATUS (transparency: show visitors the robot works)
+# ROBOT STATUS
 # ============================================================
 
 robot_status = {
@@ -77,7 +82,6 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 
 ROBOT_INTERVAL_HOURS = 6
 
-# Number of articles per country when robot runs
 ARTICLES_PER_COUNTRY = 5
 
 
@@ -237,8 +241,7 @@ COUNTRIES = {
         "region": "global",
         "google_news": "AU",
         "languages": ["en"]
-    },
-
+    }
 }
 
 
@@ -259,21 +262,28 @@ LANGUAGES = {
 # ============================================================
 
 def absolute_url(path="/"):
+
     if not SITE_URL:
         return path
+
     return f"{SITE_URL}{path}"
 
 
 def seo_description(text, max_length=160):
+
     if not text:
         return "Corvex News — Latest international news and updates."
+
     clean = " ".join(str(text).split())
+
     if len(clean) <= max_length:
         return clean
+
     return clean[:max_length - 3].rsplit(" ", 1)[0] + "..."
 
 
 def article_path(article_id, country, lang):
+
     return (
         f"/article/{article_id}"
         f"?country={urllib.parse.quote(country)}"
@@ -288,6 +298,7 @@ def article_path(article_id, country, lang):
 def get_db_connection():
 
     if not DATABASE_URL:
+
         raise RuntimeError(
             "DATABASE_URL is missing in Railway Variables."
         )
@@ -302,7 +313,6 @@ def init_db():
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Main table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS articles (
                 id SERIAL PRIMARY KEY,
@@ -332,11 +342,8 @@ def init_db():
             );
         """)
 
-        # ======================================================
-        # Migration for old articles table
-        # ======================================================
-
         columns = {
+
             "country": "TEXT",
             "region": "TEXT",
             "category": "TEXT",
@@ -368,7 +375,6 @@ def init_db():
                 """
             )
 
-        # Indexes
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_articles_country
             ON articles(country);
@@ -385,6 +391,7 @@ def init_db():
         """)
 
         conn.commit()
+
         cur.close()
         conn.close()
 
@@ -392,11 +399,13 @@ def init_db():
 
     except Exception as e:
 
-        print(f"!! Database initialization failed: {e}")
+        print(
+            f"!! Database initialization failed: {e}"
+        )
 
 
 # ============================================================
-# GROQ ROTATION
+# GROQ
 # ============================================================
 
 def generate_with_groq(prompt):
@@ -411,7 +420,6 @@ def generate_with_groq(prompt):
 
     total_keys = len(GROQ_KEYS)
 
-    # Try every key
     for attempt in range(total_keys):
 
         key_index = current_groq_key
@@ -432,6 +440,7 @@ def generate_with_groq(prompt):
                 model=GROQ_MODEL,
 
                 messages=[
+
                     {
                         "role": "system",
                         "content": """
@@ -441,12 +450,9 @@ Your job is to transform real news topics into
 clear, neutral and informative news articles.
 
 IMPORTANT:
+
 - Do NOT turn every topic into an AI article.
 - Write about the actual subject.
-- If the topic is politics, explain the political event.
-- If the topic is sports, explain the sports event.
-- If the topic is economy, explain the economy event.
-- If the topic is technology, explain the technology event.
 - Do not invent names, numbers or facts.
 - Do not claim information that is not supported by the source.
 - Keep the article readable for normal users.
@@ -467,13 +473,15 @@ IMPORTANT:
             result = response.choices[0].message.content
 
             if not result:
-                raise Exception("Empty Groq response")
+
+                raise Exception(
+                    "Empty Groq response"
+                )
 
             print(
                 f"-> Groq API #{key_index + 1} SUCCESS"
             )
 
-            # Round-robin
             current_groq_key = (
                 current_groq_key + 1
             ) % total_keys
@@ -488,21 +496,9 @@ IMPORTANT:
                 f"!! Groq API #{key_index + 1} FAILED: {error}"
             )
 
-            # Move to next key
             current_groq_key = (
                 current_groq_key + 1
             ) % total_keys
-
-            # Rate limit
-            if "429" in error or "rate_limit" in error.lower():
-
-                print(
-                    f"!! API #{key_index + 1} RATE LIMITED"
-                )
-
-                # Don't sleep for a long time.
-                # Immediately try the next account.
-                continue
 
             continue
 
@@ -518,6 +514,7 @@ IMPORTANT:
 def generate_image(prompt):
 
     if not prompt:
+
         prompt = "international news"
 
     clean_prompt = urllib.parse.quote(
@@ -525,7 +522,7 @@ def generate_image(prompt):
     )
 
     return (
-        f"https://image.pollinations.ai/prompt/"
+        "https://image.pollinations.ai/prompt/"
         f"{clean_prompt}"
     )
 
@@ -536,8 +533,9 @@ def generate_image(prompt):
 
 def get_client_ip():
 
-    # Railway / proxy
-    forwarded = request.headers.get("X-Forwarded-For")
+    forwarded = request.headers.get(
+        "X-Forwarded-For"
+    )
 
     if forwarded:
 
@@ -552,8 +550,9 @@ def get_client_ip():
 
 def detect_country():
 
-    # Try cookie first
-    saved_country = request.cookies.get("country")
+    saved_country = request.cookies.get(
+        "country"
+    )
 
     if saved_country in COUNTRIES:
 
@@ -563,7 +562,6 @@ def detect_country():
 
         ip = get_client_ip()
 
-        # Local/private IP
         try:
 
             ip_obj = ipaddress.ip_address(ip)
@@ -573,6 +571,7 @@ def detect_country():
                 or ip_obj.is_loopback
                 or ip_obj.is_reserved
             ):
+
                 return "ma"
 
         except Exception:
@@ -589,8 +588,10 @@ def detect_country():
             data = response.json()
 
             country_code = (
-                data.get("country_code", "")
-                .lower()
+                data.get(
+                    "country_code",
+                    ""
+                ).lower()
             )
 
             if country_code in COUNTRIES:
@@ -603,7 +604,6 @@ def detect_country():
             f"!! Country detection failed: {e}"
         )
 
-    # Default
     return "ma"
 
 
@@ -613,7 +613,9 @@ def detect_country():
 
 def detect_language(country):
 
-    saved_language = request.cookies.get("lang")
+    saved_language = request.cookies.get(
+        "lang"
+    )
 
     if saved_language in LANGUAGES:
 
@@ -623,30 +625,24 @@ def detect_language(country):
         request.headers.get(
             "Accept-Language",
             ""
-        )
-        .lower()
+        ).lower()
     )
 
-    # Browser language
     for language in LANGUAGES:
 
         if accept_language.startswith(language):
 
             return language
 
-    # Country preferred language
     if country in COUNTRIES:
 
         languages = COUNTRIES[country]["languages"]
 
-        if languages:
+        for language in languages:
 
-            # Only use our supported languages
-            for language in languages:
+            if language in LANGUAGES:
 
-                if language in LANGUAGES:
-
-                    return language
+                return language
 
     return "en"
 
@@ -665,10 +661,9 @@ def get_country_news(country):
 
     google_country = country_info["google_news"]
 
-    # Google News RSS
     url = (
         "https://news.google.com/rss"
-        f"?hl=en-US"
+        "?hl=en-US"
         f"&gl={google_country}"
         f"&ceid={google_country}:en"
     )
@@ -702,9 +697,9 @@ def get_country_news(country):
             )
 
             if not title:
+
                 continue
 
-            # Source
             source_name = ""
 
             if hasattr(entry, "source"):
@@ -723,11 +718,13 @@ def get_country_news(country):
                     pass
 
             news.append({
+
                 "title": title,
                 "description": description,
                 "link": link,
                 "published": published,
                 "source": source_name
+
             })
 
         return news
@@ -757,7 +754,10 @@ def generate_article(news_item, country):
     original_title = news_item["title"]
 
     source_description = (
-        news_item.get("description", "")
+        news_item.get(
+            "description",
+            ""
+        )
     )
 
     prompt = f"""
@@ -777,10 +777,10 @@ Return ONLY valid JSON.
 Use exactly this structure:
 
 {{
-    "title": "accurate title",
-    "content": "news article of around 400-600 words",
-    "category": "Politics",
-    "image_prompt": "short realistic image description"
+"title": "accurate title",
+"content": "news article of around 400-600 words",
+"category": "Politics",
+"image_prompt": "short realistic image description"
 }}
 
 Rules:
@@ -807,7 +807,6 @@ Rules:
 
         clean = raw.strip()
 
-        # Remove markdown fences
         if clean.startswith("```"):
 
             clean = clean.replace(
@@ -822,9 +821,7 @@ Rules:
 
             clean = clean.strip()
 
-        data = json.loads(clean)
-
-        return data
+        return json.loads(clean)
 
     except Exception as e:
 
@@ -850,10 +847,12 @@ def translate_article(
 ):
 
     language_names = {
+
         "ar": "Arabic",
         "fr": "French",
         "en": "English",
         "es": "Spanish"
+
     }
 
     target = language_names.get(
@@ -865,6 +864,7 @@ def translate_article(
 Translate this news article into {target}.
 
 IMPORTANT:
+
 - Preserve the meaning.
 - Do not add information.
 - Do not remove information.
@@ -880,8 +880,8 @@ CONTENT:
 Return ONLY JSON:
 
 {{
-    "title": "...",
-    "content": "..."
+"title": "...",
+"content": "..."
 }}
 """
 
@@ -909,9 +909,7 @@ Return ONLY JSON:
 
             clean = clean.strip()
 
-        data = json.loads(clean)
-
-        return data
+        return json.loads(clean)
 
     except Exception as e:
 
@@ -934,6 +932,7 @@ def article_exists(
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
         cur.execute(
@@ -953,6 +952,7 @@ def article_exists(
         result = cur.fetchone()
 
         cur.close()
+
         conn.close()
 
         return result is not None
@@ -980,6 +980,7 @@ def save_article(
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
         country_info = COUNTRIES.get(
@@ -1004,8 +1005,10 @@ def save_article(
             ""
         )
 
-        # Arabic
-        ar = translations.get("ar", {})
+        ar = translations.get(
+            "ar",
+            {}
+        )
 
         title_ar = ar.get(
             "title",
@@ -1017,8 +1020,10 @@ def save_article(
             content_en
         )
 
-        # French
-        fr = translations.get("fr", {})
+        fr = translations.get(
+            "fr",
+            {}
+        )
 
         title_fr = fr.get(
             "title",
@@ -1030,8 +1035,10 @@ def save_article(
             content_en
         )
 
-        # Spanish
-        es = translations.get("es", {})
+        es = translations.get(
+            "es",
+            {}
+        )
 
         title_es = es.get(
             "title",
@@ -1111,8 +1118,15 @@ def save_article(
 
                 image_url,
 
-                news_item.get("link", ""),
-                news_item.get("source", ""),
+                news_item.get(
+                    "link",
+                    ""
+                ),
+
+                news_item.get(
+                    "source",
+                    ""
+                ),
 
                 news_item.get(
                     "title",
@@ -1124,6 +1138,7 @@ def save_article(
         conn.commit()
 
         cur.close()
+
         conn.close()
 
         print(
@@ -1149,7 +1164,7 @@ def save_article(
 def process_country(country):
 
     print(
-        f"\n===================================="
+        "\n===================================="
     )
 
     print(
@@ -1157,10 +1172,9 @@ def process_country(country):
     )
 
     print(
-        f"===================================="
+        "===================================="
     )
 
-    # Update live status so visitors can see which country is being processed
     robot_status["current_country"] = country
 
     news = get_country_news(country)
@@ -1186,7 +1200,6 @@ def process_country(country):
             ""
         )
 
-        # Avoid duplicates
         if source_url:
 
             if article_exists(
@@ -1231,10 +1244,6 @@ def process_country(country):
 
         translations = {}
 
-        # ====================================================
-        # Arabic
-        # ====================================================
-
         print(
             "-> Translating Arabic..."
         )
@@ -1248,10 +1257,6 @@ def process_country(country):
         if ar:
 
             translations["ar"] = ar
-
-        # ====================================================
-        # French
-        # ====================================================
 
         print(
             "-> Translating French..."
@@ -1267,10 +1272,6 @@ def process_country(country):
 
             translations["fr"] = fr
 
-        # ====================================================
-        # Spanish
-        # ====================================================
-
         print(
             "-> Translating Spanish..."
         )
@@ -1285,10 +1286,6 @@ def process_country(country):
 
             translations["es"] = es
 
-        # ====================================================
-        # Save
-        # ====================================================
-
         success = save_article(
             country,
             news_item,
@@ -1300,10 +1297,10 @@ def process_country(country):
 
             saved += 1
 
-            # Keep the live counter growing during the run
-            robot_status["total_articles_this_run"] += 1
+            robot_status[
+                "total_articles_this_run"
+            ] += 1
 
-        # Small pause
         time.sleep(2)
 
     print(
@@ -1330,31 +1327,29 @@ def run_robot():
 
         return
 
-    # ---- mark robot as ON (visible to visitors) ----
     robot_status["running"] = True
+
     robot_status["current_country"] = None
+
     robot_status["last_run_start"] = datetime.now()
-    robot_status["total_articles_this_run"] = 0
+
+    robot_status[
+        "total_articles_this_run"
+    ] = 0
 
     try:
 
         print(
-            "\n\n"
-            "=========================================="
+            "\n=========================================="
         )
 
         print(
-            f"NEWS ROBOT STARTED "
-            f"{datetime.now()}"
+            f"NEWS ROBOT STARTED {datetime.now()}"
         )
 
         print(
             "=========================================="
         )
-
-        # ====================================================
-        # Generate for all configured countries
-        # ====================================================
 
         for country in COUNTRIES.keys():
 
@@ -1368,17 +1363,14 @@ def run_robot():
                     f"!! Country {country} failed: {e}"
                 )
 
-            # pause between countries
             time.sleep(3)
 
         print(
-            "\n"
-            "=========================================="
+            "\n=========================================="
         )
 
         print(
-            f"NEWS ROBOT FINISHED "
-            f"{datetime.now()}"
+            f"NEWS ROBOT FINISHED {datetime.now()}"
         )
 
         print(
@@ -1387,23 +1379,28 @@ def run_robot():
 
     finally:
 
-        # ---- mark robot as OFF, save summary for the banner ----
         robot_status["running"] = False
+
         robot_status["current_country"] = None
+
         robot_status["last_run_end"] = datetime.now()
-        robot_status["last_run_saved"] = robot_status["total_articles_this_run"]
+
+        robot_status[
+            "last_run_saved"
+        ] = robot_status[
+            "total_articles_this_run"
+        ]
 
         robot_lock.release()
 
 
 # ============================================================
-# ROUTES
+# HOME
 # ============================================================
 
 @app.route("/")
 def home():
 
-    # Detect user country
     country = request.args.get(
         "country"
     )
@@ -1412,7 +1409,6 @@ def home():
 
         country = detect_country()
 
-    # Detect language
     lang = request.args.get(
         "lang"
     )
@@ -1423,13 +1419,13 @@ def home():
             country
         )
 
-    # Current country
     country_info = COUNTRIES.get(
         country,
         COUNTRIES["ma"]
     )
 
     title_column = f"title_{lang}"
+
     content_column = f"content_{lang}"
 
     articles = []
@@ -1437,6 +1433,7 @@ def home():
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
         query = f"""
@@ -1449,11 +1446,8 @@ def home():
                 source_name,
                 created_at
             FROM articles
-
             WHERE country = %s
-
             ORDER BY created_at DESC
-
             LIMIT 30
         """
 
@@ -1465,20 +1459,27 @@ def home():
         rows = cur.fetchall()
 
         cur.close()
+
         conn.close()
 
         for row in rows:
 
             articles.append({
+
                 "id": row[0],
+
                 "title": row[1],
-                "content": (
-                    row[2] or ""
-                ),
+
+                "content": row[2] or "",
+
                 "image": row[3],
+
                 "category": row[4],
+
                 "source": row[5],
+
                 "created_at": row[6]
+
             })
 
     except Exception as e:
@@ -1488,6 +1489,7 @@ def home():
         )
 
     return render_template_string(
+
         HOME_TEMPLATE,
 
         articles=articles,
@@ -1499,44 +1501,70 @@ def home():
         current_country=country,
 
         current_language=lang,
+
         ga_id=GA_ID,
+
         adsense_client=ADSENSE_CLIENT,
+
         country_name=country_info["name"],
+
         site_url=SITE_URL,
+
         canonical_url=absolute_url(
-            f"/?country={urllib.parse.quote(country)}&lang={urllib.parse.quote(lang)}"
+            f"/?country={urllib.parse.quote(country)}"
+            f"&lang={urllib.parse.quote(lang)}"
         ),
-        absolute_home_urls={
-            code: absolute_url(
-                f"/?country={urllib.parse.quote(country)}&lang={urllib.parse.quote(code)}"
-            )
-            for code in LANGUAGES
-        },
+
         robot_status=robot_status,
+
         robot_interval=ROBOT_INTERVAL_HOURS,
+
         current_country_name=(
-            COUNTRIES[robot_status["current_country"]]["name"]
-            if robot_status["current_country"] in COUNTRIES
+            COUNTRIES[
+                robot_status["current_country"]
+            ]["name"]
+
+            if robot_status["current_country"]
+            in COUNTRIES
+
             else None
         )
     )
 
+
+# ============================================================
+# ADS.TXT
+# ============================================================
+
 @app.route("/ads.txt")
 def ads_txt():
+
     if not ADSENSE_CLIENT:
+
         return (
             "AdSense publisher ID is not configured.",
             503,
-            {"Content-Type": "text/plain; charset=utf-8"}
+            {
+                "Content-Type":
+                "text/plain; charset=utf-8"
+            }
         )
 
-    publisher_id = ADSENSE_CLIENT.replace("ca-", "").strip()
+    publisher_id = (
+        ADSENSE_CLIENT
+        .replace("ca-", "")
+        .strip()
+    )
 
     return (
-        f"google.com, {publisher_id}, DIRECT, f08c47fec0942fa0\n"
+        f"google.com, {publisher_id}, DIRECT, "
+        "f08c47fec0942fa0\n"
     ), 200, {
-        "Content-Type": "text/plain; charset=utf-8"
+        "Content-Type":
+        "text/plain; charset=utf-8"
     }
+
+
 # ============================================================
 # ARTICLE DETAILS
 # ============================================================
@@ -1563,6 +1591,7 @@ def article_detail(article_id):
         )
 
     title_column = f"title_{lang}"
+
     content_column = f"content_{lang}"
 
     article = None
@@ -1570,6 +1599,7 @@ def article_detail(article_id):
     try:
 
         conn = get_db_connection()
+
         cur = conn.cursor()
 
         query = f"""
@@ -1597,20 +1627,31 @@ def article_detail(article_id):
         row = cur.fetchone()
 
         cur.close()
+
         conn.close()
 
         if row:
 
             article = {
+
                 "id": row[0],
+
                 "title": row[1],
+
                 "content": row[2],
+
                 "image": row[3],
+
                 "category": row[4],
+
                 "source_url": row[5],
+
                 "source_name": row[6],
+
                 "original_title": row[7],
+
                 "created_at": row[8],
+
                 "country": row[9]
             }
 
@@ -1627,7 +1668,28 @@ def article_detail(article_id):
             404
         )
 
+    # ========================================================
+    # IMPORTANT:
+    # Create alternate URLs for all supported languages.
+    # This fixes:
+    # jinja2.exceptions.UndefinedError:
+    # 'alternate_urls' is undefined
+    # ========================================================
+
+    alternate_urls = {}
+
+    for lang_code in LANGUAGES:
+
+        alternate_urls[lang_code] = absolute_url(
+            article_path(
+                article_id,
+                country,
+                lang_code
+            )
+        )
+
     return render_template_string(
+
         ARTICLE_TEMPLATE,
 
         article=article,
@@ -1638,7 +1700,23 @@ def article_detail(article_id):
 
         current_country=country,
 
-        current_language=lang
+        current_language=lang,
+
+        alternate_urls=alternate_urls,
+
+        ga_id=GA_ID,
+
+        adsense_client=ADSENSE_CLIENT,
+
+        site_url=SITE_URL,
+
+        canonical_url=absolute_url(
+            article_path(
+                article_id,
+                country,
+                lang
+            )
+        )
     )
 
 
@@ -1657,6 +1735,10 @@ def set_country(country):
         "lang",
         "en"
     )
+
+    if lang not in LANGUAGES:
+
+        lang = "en"
 
     response = redirect(
         url_for(
@@ -1712,7 +1794,7 @@ def set_language(lang):
 
 
 # ============================================================
-# LIVE ROBOT STATUS (JSON) - used by the front-end badge to auto-refresh
+# ROBOT STATUS
 # ============================================================
 
 @app.route("/robot-status")
@@ -1721,106 +1803,184 @@ def robot_status_json():
     data = dict(robot_status)
 
     data["last_run_start"] = (
-        robot_status["last_run_start"].isoformat()
-        if robot_status["last_run_start"] else None
+
+        robot_status[
+            "last_run_start"
+        ].isoformat()
+
+        if robot_status[
+            "last_run_start"
+        ]
+
+        else None
     )
 
     data["last_run_end"] = (
-        robot_status["last_run_end"].isoformat()
-        if robot_status["last_run_end"] else None
+
+        robot_status[
+            "last_run_end"
+        ].isoformat()
+
+        if robot_status[
+            "last_run_end"
+        ]
+
+        else None
     )
 
-    if robot_status["current_country"] in COUNTRIES:
-        data["current_country_name"] = COUNTRIES[robot_status["current_country"]]["name"]
+    if (
+        robot_status["current_country"]
+        in COUNTRIES
+    ):
+
+        data["current_country_name"] = (
+            COUNTRIES[
+                robot_status[
+                    "current_country"
+                ]
+            ]["name"]
+        )
+
     else:
+
         data["current_country_name"] = None
 
     return jsonify(data)
 
 
 # ============================================================
-# SEO ROUTES
+# ROBOTS.TXT
 # ============================================================
 
 @app.route("/robots.txt")
 def robots_txt():
-    sitemap_url = absolute_url("/sitemap.xml")
+
+    sitemap_url = absolute_url(
+        "/sitemap.xml"
+    )
+
     return (
         "User-agent: *\n"
         "Allow: /\n"
         "Disallow: /health\n"
         "Disallow: /run-robot\n\n"
         f"Sitemap: {sitemap_url}\n"
-    ), 200, {"Content-Type": "text/plain; charset=utf-8"}
+    ), 200, {
+        "Content-Type":
+        "text/plain; charset=utf-8"
+    }
 
+
+# ============================================================
+# SITEMAP
+# ============================================================
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
+
     urls = []
 
-    # Home pages for each configured country/language.
     for country_code in COUNTRIES:
+
         for lang_code in LANGUAGES:
+
             urls.append(
+
                 absolute_url(
-                    f"/?country={urllib.parse.quote(country_code)}"
-                    f"&lang={urllib.parse.quote(lang_code)}"
+
+                    f"/?country="
+                    f"{urllib.parse.quote(country_code)}"
+                    f"&lang="
+                    f"{urllib.parse.quote(lang_code)}"
+
                 )
             )
 
-    # Article URLs.
     try:
+
         conn = get_db_connection()
+
         cur = conn.cursor()
+
         cur.execute("""
             SELECT id, country, created_at
             FROM articles
             ORDER BY created_at DESC
         """)
+
         rows = cur.fetchall()
+
         cur.close()
+
         conn.close()
 
         for article_id, country_code, created_at in rows:
+
             for lang_code in LANGUAGES:
+
                 urls.append(
+
                     absolute_url(
-                        article_path(article_id, country_code, lang_code)
+
+                        article_path(
+                            article_id,
+                            country_code,
+                            lang_code
+                        )
+
                     )
                 )
-    except Exception as e:
-        print(f"!! Sitemap database error: {e}")
 
-    # Remove duplicates while preserving order.
-    urls = list(dict.fromkeys(urls))
+    except Exception as e:
+
+        print(
+            f"!! Sitemap database error: {e}"
+        )
+
+    urls = list(
+        dict.fromkeys(urls)
+    )
 
     parts = [
+
         '<?xml version="1.0" encoding="UTF-8"?>',
+
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+
     ]
 
     for url in urls:
+
         parts.append(
+
             "<url><loc>"
-            + url.replace("&", "&amp;")
+            + url.replace(
+                "&",
+                "&amp;"
+            )
             + "</loc></url>"
+
         )
 
-    parts.append("</urlset>")
+    parts.append(
+        "</urlset>"
+    )
 
     return "\n".join(parts), 200, {
-        "Content-Type": "application/xml; charset=utf-8"
+
+        "Content-Type":
+        "application/xml; charset=utf-8"
+
     }
 
 
 # ============================================================
-# MANUAL ROBOT TEST
+# MANUAL ROBOT
 # ============================================================
 
 @app.route("/run-robot")
 def manual_robot():
 
-    # Simple manual trigger
     run_robot()
 
     return """
@@ -1830,17 +1990,26 @@ def manual_robot():
 
 
 # ============================================================
-# HEALTH CHECK
+# HEALTH
 # ============================================================
 
 @app.route("/health")
 def health():
 
     return {
+
         "status": "ok",
+
         "groq_keys": len(GROQ_KEYS),
+
         "database": bool(DATABASE_URL),
-        "robot": "running" if robot_status["running"] else "idle"
+
+        "robot": (
+            "running"
+            if robot_status["running"]
+            else "idle"
+        )
+
     }
 
 
@@ -1852,364 +2021,72 @@ HOME_TEMPLATE = """
 
 <!DOCTYPE html>
 
-<html lang="{{ current_language }}">
+<html>
 
 <head>
 
-<meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/png"
-          href="{{ url_for('static', filename='logo.png') }}">
- <!-- 1. Google Analytics -->
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Corvex News - {{ country_name }}
+    </title>
+
     {% if ga_id %}
-    <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+
+    <script
+        async
+        src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"
+    ></script>
+
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', '{{ ga_id }}');
-    </script>
-    {% endif %}
 
-    <!-- 2. Google AdSense -->
-    {% if adsense_client %}
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
-     crossorigin="anonymous"></script>
-    {% endif %}
+        window.dataLayer =
+            window.dataLayer || [];
 
-<title>Corvex News - {{ country_name }}</title>
+        function gtag(){
+            dataLayer.push(arguments);
+        }
 
-<meta name="description"
-      content="Latest news and updates from {{ country_name }} on Corvex News.">
-
-<meta name="robots"
-      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-
-<link rel="canonical" href="{{ canonical_url }}">
-
-<!-- Open Graph -->
-<meta property="og:type" content="website">
-<meta property="og:title" content="Corvex News - {{ country_name }}">
-<meta property="og:description"
-      content="Latest news and updates from {{ country_name }} on Corvex News.">
-<meta property="og:url" content="{{ canonical_url }}">
-<meta property="og:site_name" content="Corvex News">
-
-<!-- Twitter -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Corvex News - {{ country_name }}">
-<meta name="twitter:description"
-      content="Latest news and updates from {{ country_name }} on Corvex News.">
-
-<!-- Hreflang -->
-{% for lang_code in languages.keys() %}
-<link rel="alternate"
-      hreflang="{{ lang_code }}"
-      href="{{ absolute_home_urls[lang_code] }}">
-{% endfor %}
-<link rel="alternate"
-      hreflang="x-default"
-      href="{{ absolute_home_urls['en'] }}">
-
-<!-- Website structured data -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  "name": "Corvex News",
-  "url": "{{ site_url }}",
-  "description": "International news website.",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": "{{ site_url }}/?lang={search_term_string}",
-    "query-input": "required name=search_term_string"
-  }
-}
-</script>
-
-
-<style>
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-
-    margin: 0;
-
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-
-    background: #f4f6f8;
-
-    color: #111827;
-}
-
-header {
-
-    background: #111827;
-
-    color: white;
-
-    padding: 18px 5%;
-
-    display: flex;
-
-    justify-content: space-between;
-
-    align-items: center;
-
-    flex-wrap: wrap;
-
-    gap: 15px;
-}
-
-.logo {
-
-    font-size: 26px;
-
-    font-weight: bold;
-}
-
-.controls {
-
-    display: flex;
-
-    gap: 8px;
-
-    flex-wrap: wrap;
-}
-
-select {
-
-    padding: 9px;
-
-    border-radius: 8px;
-
-    border: none;
-}
-
-.container {
-
-    width: 90%;
-
-    max-width: 1200px;
-
-    margin: 30px auto;
-}
-
-.hero {
-
-    margin-bottom: 25px;
-}
-
-.hero h1 {
-
-    margin-bottom: 5px;
-
-    font-size: 32px;
-}
-
-.hero p {
-
-    color: #6b7280;
-}
-
-/* ---------------------------------------------------- */
-/* ROBOT STATUS BANNER                                   */
-/* ---------------------------------------------------- */
-
-.robot-banner {
-
-    background: #eef2ff;
-    border: 1px solid #c7d2fe;
-    color: #3730a3;
-    padding: 12px 18px;
-    border-radius: 12px;
-    font-size: 14px;
-    margin-bottom: 22px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.robot-banner.is-running {
-    background: #ecfdf5;
-    border-color: #a7f3d0;
-    color: #065f46;
-}
-
-.robot-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: #6366f1;
-    flex-shrink: 0;
-}
-
-.robot-banner.is-running .robot-dot {
-    background: #10b981;
-    animation: pulse-dot 1.2s infinite;
-}
-
-@keyframes pulse-dot {
-    0%   { box-shadow: 0 0 0 0 rgba(16,185,129,.5); }
-    70%  { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
-    100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
-}
-
-.badge-ai {
-    display: inline-block;
-    font-size: 11px;
-    padding: 3px 9px;
-    border-radius: 12px;
-    background: #111827;
-    color: #fff;
-    margin-left: 10px;
-    vertical-align: middle;
-    font-weight: normal;
-}
-
-.grid {
-
-    display: grid;
-
-    grid-template-columns:
-        repeat(
-            auto-fit,
-            minmax(280px, 1fr)
+        gtag(
+            'js',
+            new Date()
         );
 
-    gap: 22px;
-}
+        gtag(
+            'config',
+            '{{ ga_id }}'
+        );
 
-.card {
+    </script>
 
-    background: white;
+    {% endif %}
 
-    border-radius: 14px;
 
-    overflow: hidden;
+    {% if adsense_client %}
 
-    box-shadow:
-        0 5px 20px
-        rgba(0,0,0,.08);
+    <script
+        async
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+        crossorigin="anonymous"
+    ></script>
 
-    transition: .2s;
-
-    display: flex;
-
-    flex-direction: column;
-}
-
-.card:hover {
-
-    transform: translateY(-4px);
-
-    box-shadow:
-        0 10px 25px
-        rgba(0,0,0,.12);
-}
-
-.card img {
-
-    width: 100%;
-
-    height: 190px;
-
-    object-fit: cover;
-}
-
-.card-content {
-
-    padding: 18px;
-
-    flex: 1;
-}
-
-.category {
-
-    display: inline-block;
-
-    font-size: 12px;
-
-    padding: 5px 9px;
-
-    border-radius: 20px;
-
-    background: #e5e7eb;
-
-    margin-bottom: 10px;
-}
-
-.card h2 {
-
-    font-size: 20px;
-
-    line-height: 1.35;
-
-    margin: 5px 0 12px;
-}
-
-.card p {
-
-    color: #6b7280;
-
-    line-height: 1.6;
-}
-
-.read {
-
-    display: inline-block;
-
-    margin-top: 10px;
-
-    text-decoration: none;
-
-    background: #111827;
-
-    color: white;
-
-    padding: 9px 14px;
-
-    border-radius: 8px;
-}
-
-.no-news {
-
-    background: white;
-
-    padding: 40px;
-
-    text-align: center;
-
-    border-radius: 14px;
-}
-
-.no-news .robot-dot {
-    display: inline-block;
-    margin-right: 6px;
-}
-
-</style>
+    {% endif %}
 
 </head>
 
-
 <body>
-
 
 <header>
 
     <div class="logo">
         CORVEX NEWS
     </div>
+
 
     <div class="controls">
 
@@ -2226,20 +2103,20 @@ select {
                 onchange="this.form.submit()"
             >
 
-            {% for code, name in languages.items() %}
+                {% for code, name in languages.items() %}
 
-                <option
-                    value="{{ code }}"
-                    {% if code == current_language %}
+                    <option
+                        value="{{ code }}"
+                        {% if code == current_language %}
                         selected
-                    {% endif %}
-                >
+                        {% endif %}
+                    >
 
-                    {{ name }}
+                        {{ name }}
 
-                </option>
+                    </option>
 
-            {% endfor %}
+                {% endfor %}
 
             </select>
 
@@ -2259,20 +2136,20 @@ select {
                 onchange="this.form.submit()"
             >
 
-            {% for code, info in countries.items() %}
+                {% for code, info in countries.items() %}
 
-                <option
-                    value="{{ code }}"
-                    {% if code == current_country %}
+                    <option
+                        value="{{ code }}"
+                        {% if code == current_country %}
                         selected
-                    {% endif %}
-                >
+                        {% endif %}
+                    >
 
-                    {{ info.native }}
+                        {{ info.native }}
 
-                </option>
+                    </option>
 
-            {% endfor %}
+                {% endfor %}
 
             </select>
 
@@ -2283,7 +2160,7 @@ select {
 </header>
 
 
-<div class="container">
+<main>
 
     <div class="hero">
 
@@ -2296,72 +2173,76 @@ select {
         </p>
 
     </div>
+
+
     {% if articles %}
 
         <div class="grid">
 
-        {% for article in articles %}
+            {% for article in articles %}
 
-            <article class="card">
+                <article class="card">
 
-                {% if article.image %}
+                    {% if article.image %}
 
-                    <img
-                        src="{{ article.image }}"
-                        alt="{{ article.title }}"
-                    >
+                        <img
+                            src="{{ article.image }}"
+                            alt="{{ article.title }}"
+                        >
 
-                {% endif %}
-
-
-                <div class="card-content">
-
-                    <span class="category">
-
-                        {{ article.category or "News" }}
-
-                    </span>
+                    {% endif %}
 
 
-                    <h2>
+                    <div class="card-content">
 
-                        {{ article.title }}
+                        <span class="category">
 
-                        <span class="badge-ai">IA</span>
+                            {{ article.category or "News" }}
 
-                    </h2>
-
-
-                    <p>
-
-                        {{ article.content[:240] }}
-
-                        {% if article.content|length > 240 %}
-                            ...
-                        {% endif %}
-
-                    </p>
+                        </span>
 
 
-                    <a
-                        class="read"
-                        href="{{ url_for(
-                            'article_detail',
-                            article_id=article.id,
-                            country=current_country,
-                            lang=current_language
-                        ) }}"
-                    >
+                        <h2>
 
-                        Read article →
+                            {{ article.title }}
 
-                    </a>
+                            <span class="badge-ai">
+                                IA
+                            </span>
 
-                </div>
+                        </h2>
 
-            </article>
 
-        {% endfor %}
+                        <p>
+
+                            {{ article.content[:240] }}
+
+                            {% if article.content|length > 240 %}
+                                ...
+                            {% endif %}
+
+                        </p>
+
+
+                        <a
+                            class="read"
+                            href="{{ url_for(
+                                'article_detail',
+                                article_id=article.id,
+                                country=current_country,
+                                lang=current_language
+                            ) }}"
+                        >
+
+                            Read article →
+
+                        </a>
+
+                    </div>
+
+                </article>
+
+            {% endfor %}
 
         </div>
 
@@ -2369,48 +2250,20 @@ select {
 
         <div class="no-news">
 
-            <h2><span class="robot-dot"></span> No news yet</h2>
+            <h2>
+                No news yet
+            </h2>
 
             <p>
                 En train de collecter les dernières news
-                pour {{ country_name }}. Revenez dans quelques minutes.
+                pour {{ country_name }}.
             </p>
 
         </div>
 
     {% endif %}
 
-</div>
-
-<script>
-// Auto-refresh the robot status banner every 20s without reloading the page
-function refreshRobotStatus() {
-    fetch('/robot-status')
-        .then(r => r.json())
-        .then(data => {
-            const banner = document.getElementById('robot-banner');
-            const text = document.getElementById('robot-banner-text');
-            if (!banner || !text) return;
-
-            if (data.running) {
-                banner.classList.add('is-running');
-                text.textContent = 'En train de récupérer et générer les news'
-                    + (data.current_country_name ? ' (actuellement : ' + data.current_country_name + ')' : '')
-                    + ' en direct...';
-            } else {
-                banner.classList.remove('is-running');
-                if (data.last_run_end) {
-                    const d = new Date(data.last_run_end);
-                    text.textContent = 'Contenu généré et traduit  — dernière mise à jour : '
-                        + d.toLocaleString() + ' (' + data.last_run_saved + ' nouveaux articles).';
-                }
-            }
-        })
-        .catch(() => {});
-}
-setInterval(refreshRobotStatus, 20000);
-</script>
-
+</main>
 
 </body>
 
@@ -2427,207 +2280,68 @@ ARTICLE_TEMPLATE = """
 
 <!DOCTYPE html>
 
-<html lang="{{ current_language }}">
+<html>
 
 <head>
 
-<meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-<title>{{ article.title }} | Corvex News</title>
+    <title>
+        {{ article.title }} - Corvex News
+    </title>
 
-<meta name="description"
-      content="{{ article_description }}">
 
-<meta name="robots"
-      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <link
+        rel="canonical"
+        href="{{ canonical_url }}"
+    >
 
-<link rel="canonical" href="{{ canonical_url }}">
 
-<!-- Open Graph -->
-<meta property="og:type" content="article">
-<meta property="og:title" content="{{ article.title }}">
-<meta property="og:description" content="{{ article_description }}">
-<meta property="og:url" content="{{ canonical_url }}">
-<meta property="og:site_name" content="Corvex News">
-{% if article.image %}
-<meta property="og:image" content="{{ article.image }}">
-{% endif %}
+    {% if ga_id %}
 
-<!-- Twitter -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="{{ article.title }}">
-<meta name="twitter:description" content="{{ article_description }}">
-{% if article.image %}
-<meta name="twitter:image" content="{{ article.image }}">
-{% endif %}
+    <script
+        async
+        src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"
+    ></script>
 
-<!-- Hreflang -->
-{% for lang_code, lang_url in alternate_urls.items() %}
-<link rel="alternate"
-      hreflang="{{ lang_code }}"
-      href="{{ lang_url }}">
-{% endfor %}
-<link rel="alternate"
-      hreflang="x-default"
-      href="{{ alternate_urls['en'] }}">
+    <script>
 
-<!-- NewsArticle structured data -->
-<script type="application/ld+json">
-{{ article_schema | safe }}
-</script>
+        window.dataLayer =
+            window.dataLayer || [];
 
-<style>
+        function gtag(){
+            dataLayer.push(arguments);
+        }
 
-body {
+        gtag(
+            'js',
+            new Date()
+        );
 
-    margin: 0;
+        gtag(
+            'config',
+            '{{ ga_id }}'
+        );
 
-    background: #f4f6f8;
+    </script>
 
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
+    {% endif %}
 
-    color: #111827;
-}
 
-header {
+    {% if adsense_client %}
 
-    background: #111827;
+    <script
+        async
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+        crossorigin="anonymous"
+    ></script>
 
-    padding: 18px 5%;
-
-    color: white;
-}
-
-header a {
-
-    color: white;
-
-    text-decoration: none;
-
-    font-weight: bold;
-}
-
-.container {
-
-    max-width: 900px;
-
-    width: 92%;
-
-    margin: 35px auto;
-
-}
-
-.article {
-
-    background: white;
-
-    padding: 30px;
-
-    border-radius: 16px;
-
-    box-shadow:
-        0 5px 25px
-        rgba(0,0,0,.08);
-}
-
-.article img {
-
-    width: 100%;
-
-    max-height: 500px;
-
-    object-fit: cover;
-
-    border-radius: 12px;
-
-    margin-bottom: 25px;
-}
-
-.category {
-
-    display: inline-block;
-
-    padding: 6px 10px;
-
-    background: #e5e7eb;
-
-    border-radius: 20px;
-
-    font-size: 13px;
-}
-
-.badge-ai {
-    display: inline-block;
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    background: #111827;
-    color: #fff;
-    margin-left: 10px;
-    vertical-align: middle;
-}
-
-h1 {
-
-    font-size: 38px;
-
-    line-height: 1.2;
-
-    margin: 18px 0;
-}
-
-.content {
-
-    font-size: 18px;
-
-    line-height: 1.9;
-
-    white-space: pre-line;
-}
-
-.source {
-
-    margin-top: 30px;
-
-    padding-top: 20px;
-
-    border-top: 1px solid #ddd;
-}
-
-.source a {
-
-    color: #2563eb;
-
-    text-decoration: none;
-}
-
-.back {
-
-    display: inline-block;
-
-    margin-bottom: 20px;
-
-    color: #2563eb;
-
-    text-decoration: none;
-}
-
-.disclaimer {
-    margin-top: 18px;
-    font-size: 13px;
-    color: #6b7280;
-    background: #f9fafb;
-    border-radius: 8px;
-    padding: 10px 14px;
-}
-
-</style>
+    {% endif %}
 
 </head>
 
@@ -2652,24 +2366,43 @@ h1 {
 </header>
 
 
-<div class="container">
+<main>
 
 
-<a
-    class="back"
-    href="{{ url_for(
-        'home',
-        country=current_country,
-        lang=current_language
-    ) }}"
->
+    <!-- Language alternate links -->
 
-    ← Back to news
+    <nav>
 
-</a>
+        {% for lang_code, lang_url in alternate_urls.items() %}
+
+            <a
+                href="{{ lang_url }}"
+            >
+
+                {{ languages.get(
+                    lang_code,
+                    lang_code
+                ) }}
+
+            </a>
+
+        {% endfor %}
+
+    </nav>
 
 
-<article class="article">
+    <a
+        class="back"
+        href="{{ url_for(
+            'home',
+            country=current_country,
+            lang=current_language
+        ) }}"
+    >
+
+        ← Back to news
+
+    </a>
 
 
     {% if article.image %}
@@ -2693,7 +2426,9 @@ h1 {
 
         {{ article.title }}
 
-        <span class="badge-ai">🤖 Généré par IA</span>
+        <span class="badge-ai">
+            🤖 Généré par IA
+        </span>
 
     </h1>
 
@@ -2704,10 +2439,14 @@ h1 {
 
     </div>
 
+
     <div class="disclaimer">
-        Cet article a été généré et traduit automatiquement par notre équipe
-        à partir d'une source réelle citée ci-dessous. Il peut contenir
-        des imprécisions ; consultez la source originale pour vérification.
+
+        Cet article a été généré et traduit automatiquement
+        à partir d'une source réelle citée ci-dessous.
+        Il peut contenir des imprécisions ;
+        consultez la source originale pour vérification.
+
     </div>
 
 
@@ -2719,13 +2458,17 @@ h1 {
                 Source:
             </strong>
 
+
             {% if article.source_name %}
 
                 {{ article.source_name }}
 
             {% endif %}
 
-            <br><br>
+
+            <br>
+            <br>
+
 
             <a
                 href="{{ article.source_url }}"
@@ -2742,11 +2485,7 @@ h1 {
     {% endif %}
 
 
-</article>
-
-
-</div>
-
+</main>
 
 </body>
 
@@ -2770,7 +2509,7 @@ scheduler = BackgroundScheduler(
     daemon=True
 )
 
-# Run immediately after startup
+
 scheduler.add_job(
     run_robot,
     trigger="date",
@@ -2779,7 +2518,7 @@ scheduler.add_job(
     replace_existing=True
 )
 
-# Then every 6 hours
+
 scheduler.add_job(
     run_robot,
     trigger="interval",
@@ -2788,7 +2527,9 @@ scheduler.add_job(
     replace_existing=True
 )
 
+
 scheduler.start()
+
 
 print(
     "-> News Robot Scheduler Started"
@@ -2818,3 +2559,4 @@ if __name__ == "__main__":
         port=port,
         debug=False
     )
+````
