@@ -1694,7 +1694,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvex News. Articles are AI-generated and translated from real sources.
+    &copy; {{ 2026 }} Corvex News.
 </footer>
 
 </body>
