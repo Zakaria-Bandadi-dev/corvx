@@ -2296,46 +2296,6 @@ select {
         </p>
 
     </div>
-
-    <!-- ==================================================== -->
-    <!-- ROBOT TRANSPARENCY BANNER                              -->
-    <!-- ==================================================== -->
-
-    <div
-        id="robot-banner"
-        class="robot-banner {% if robot_status.running %}is-running{% endif %}"
-    >
-        <span class="robot-dot"></span>
-
-        <span id="robot-banner-text">
-
-        {% if robot_status.running %}
-
-            🤖 Notre robot IA est en train de récupérer et générer les news
-            {% if current_country_name %}
-                (actuellement : {{ current_country_name }})
-            {% endif %}
-            en direct...
-
-        {% elif robot_status.last_run_end %}
-
-            🤖 Contenu généré et traduit automatiquement par notre robot IA
-            — dernière mise à jour :
-            {{ robot_status.last_run_end.strftime('%d/%m/%Y %H:%M') }}
-            ({{ robot_status.last_run_saved }} nouveaux articles).
-            Prochaine mise à jour dans ~{{ robot_interval }}h.
-
-        {% else %}
-
-            🤖 Notre robot IA prépare la première collection de news,
-            merci de patienter quelques minutes...
-
-        {% endif %}
-
-        </span>
-    </div>
-
-
     {% if articles %}
 
         <div class="grid">
