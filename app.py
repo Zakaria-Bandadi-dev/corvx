@@ -3,6 +3,8 @@ import json
 import time
 import urllib.parse
 import ipaddress
+import re
+import hashlib
 from datetime import datetime
 from threading import Lock
 
@@ -87,9 +89,25 @@ robot_status = {
 # SETTINGS
 # ============================================================
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# llama-3.3-70b-versatile was deprecated by Groq (shutdown 2026-08-16).
+# openai/gpt-oss-120b is Groq's recommended free-tier replacement:
+# same rate-limit/free-tier structure, no billing required, and it's
+# actually cheaper per-token than the old llama model if you ever
+# upgrade to a paid plan.
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 ROBOT_INTERVAL_HOURS = 6
+
+# ============================================================
+# AI SEO / TREND AUTOMATION SETTINGS
+# ============================================================
+SEO_GROQ_MODEL = os.getenv("SEO_GROQ_MODEL", "groq/compound")
+SEO_MIN_SCORE = int(os.getenv("SEO_MIN_SCORE", "78"))
+QUALITY_MIN_SCORE = int(os.getenv("QUALITY_MIN_SCORE", "82"))
+TREND_MIN_SCORE = int(os.getenv("TREND_MIN_SCORE", "45"))
+SEO_RESEARCH_ENABLED = os.getenv("SEO_RESEARCH_ENABLED", "true").lower() == "true"
+TRENDING_LIMIT = int(os.getenv("TRENDING_LIMIT", "30"))
+MAX_RESEARCH_ITEMS = int(os.getenv("MAX_RESEARCH_ITEMS", "8"))
 
 # Number of articles per country when robot runs
 ARTICLES_PER_COUNTRY = 5
@@ -100,6 +118,7 @@ ARTICLES_PER_COUNTRY = 5
 
 # groq/compound: عندو built-in tools (web_search + visit_website)
 # باش يدخل بنفسه للمواقع ديال الخدمة ويقلب على العروض الجداد.
+# (groq/compound is NOT deprecated, keep as-is)
 JOBS_GROQ_MODEL = "groq/compound"
 
 # كل بغا نهار (ساعات)
@@ -395,6 +414,20 @@ def init_db():
 
                 original_title TEXT,
 
+                -- AI SEO / trend intelligence
+                seo_title TEXT,
+                meta_description TEXT,
+                slug TEXT,
+                primary_keyword TEXT,
+                secondary_keywords TEXT,
+                search_intent TEXT,
+                trend_score INTEGER DEFAULT 0,
+                seo_score INTEGER DEFAULT 0,
+                quality_score INTEGER DEFAULT 0,
+                seo_reason TEXT,
+                faq_json TEXT,
+                schema_json TEXT,
+
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -423,7 +456,19 @@ def init_db():
             "source_url": "TEXT",
             "source_name": "TEXT",
 
-            "original_title": "TEXT"
+            "original_title": "TEXT",
+            "seo_title": "TEXT",
+            "meta_description": "TEXT",
+            "slug": "TEXT",
+            "primary_keyword": "TEXT",
+            "secondary_keywords": "TEXT",
+            "search_intent": "TEXT",
+            "trend_score": "INTEGER DEFAULT 0",
+            "seo_score": "INTEGER DEFAULT 0",
+            "quality_score": "INTEGER DEFAULT 0",
+            "seo_reason": "TEXT",
+            "faq_json": "TEXT",
+            "schema_json": "TEXT"
         }
 
         for column, column_type in columns.items():
@@ -448,6 +493,16 @@ def init_db():
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_articles_region
             ON articles(region);
+        """)
+
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_articles_primary_keyword
+            ON articles(primary_keyword);
+        """)
+
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_articles_trend_score
+            ON articles(trend_score DESC);
         """)
 
         conn.commit()
@@ -1100,76 +1155,445 @@ def get_country_news(country):
 
 
 # ============================================================
-# GENERATE ARTICLE
+# TREND + SEO INTELLIGENCE
 # ============================================================
 
-def generate_article(news_item, country):
-    country_info = COUNTRIES.get(country, COUNTRIES["ma"])
-    country_name = country_info["name"]
-
-    original_title = news_item["title"]
-    source_description = news_item.get("description", "")
-
-    prompt = f"""Create a news article based on this real news item.
-
-COUNTRY:
-{country_name}
-
-ORIGINAL HEADLINE:
-{original_title}
-
-SOURCE INFORMATION:
-{source_description}
-
-Return ONLY valid JSON.
-
-Use exactly this structure:
-
-{{
-"title": "accurate title",
-"content": "news article of around 400-600 words",
-"category": "Politics",
-"image_prompt": "short realistic image description"
-}}
-
-Rules:
-
-Discuss the ACTUAL topic in the headline.
-Do NOT automatically make it about AI.
-Do NOT invent facts.
-Do NOT invent statistics.
-Do NOT invent quotes.
-Do NOT change the main subject.
-Be neutral.
-Explain what happened and why it matters.
-Mention the country/context when relevant.
-
-The article must be useful for a normal reader.
-"""
-
-    raw = generate_with_groq(prompt)
-
+def _clean_json(raw):
     if not raw:
         return None
-
+    text = str(raw).strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?", "", text).strip()
+        text = re.sub(r"```$", "", text).strip()
+    # Extract the first JSON object if the model added prose.
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        text = text[start:end + 1]
     try:
-        clean = raw.strip()
-
-        # Remove markdown fences
-        if clean.startswith("```"):
-            clean = clean.replace("```json", "")
-            clean = clean.replace("```", "")
-            clean = clean.strip()
-
-        data = json.loads(clean)
-
-        return data
-
-    except Exception as e:
-        print(f"!! JSON parsing failed: {e}")
-        print(f"RAW RESPONSE: {raw[:500]}")
+        return json.loads(text)
+    except Exception:
         return None
 
+
+def get_google_trends(country):
+    """Fetch public Google Trends RSS queries for a country.
+    This is a trend signal, not an exact search-volume API.
+    """
+    geo = COUNTRIES.get(country, COUNTRIES["ma"]).get("google_news", "MA")
+    url = f"https://trends.google.com/trending/rss?geo={geo}"
+    try:
+        feed = feedparser.parse(url)
+        items = []
+        for entry in feed.entries[:TRENDING_LIMIT]:
+            title = (entry.get("title") or "").strip()
+            if title:
+                items.append(title)
+        return items
+    except Exception as e:
+        print(f"!! Google Trends RSS failed for {country}: {e}")
+        return []
+
+
+def generate_with_groq_compound(prompt, max_tokens=5000):
+    """Use Groq Compound for current web research. Falls back across news keys."""
+    global current_groq_key
+    if not NEWS_GROQ_KEYS:
+        return None
+    total = len(NEWS_GROQ_KEYS)
+    for _ in range(total):
+        key_index = current_groq_key
+        api_key = NEWS_GROQ_KEYS[key_index]
+        try:
+            client = Groq(api_key=api_key)
+            response = client.chat.completions.create(
+                model=SEO_GROQ_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a web research and SEO intelligence agent. "
+                            "Use web_search and visit_website when available. "
+                            "Never invent search data, rankings, facts, or sources. "
+                            "Clearly distinguish observed web evidence from inference. "
+                            "Return only valid JSON when requested."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                compound_custom={
+                    "tools": {"enabled_tools": ["web_search", "visit_website"]}
+                },
+                temperature=0.15,
+                max_tokens=max_tokens,
+            )
+            result = response.choices[0].message.content
+            current_groq_key = (current_groq_key + 1) % total
+            return result.strip() if result else None
+        except Exception as e:
+            print(f"!! Compound SEO research failed with key #{key_index + 1}: {e}")
+            current_groq_key = (current_groq_key + 1) % total
+    return None
+
+
+def trend_score_heuristic(news_item, trend_terms):
+    """Deterministic fallback score when web research is unavailable."""
+    title = (news_item.get("title") or "").lower()
+    hits = sum(1 for term in trend_terms if term.lower() in title or title in term.lower())
+    position = max(0, 100 - min(len(trend_terms), 30) * 2)
+    score = 30 + min(50, hits * 25) + min(20, position // 10)
+    return max(0, min(100, score))
+
+
+def analyze_trend_and_seo(news_item, country, trend_terms):
+    """Decide whether a topic is worth publishing and build its SEO plan."""
+    country_name = COUNTRIES.get(country, COUNTRIES["ma"])["name"]
+    trends_text = "\n".join(f"- {x}" for x in trend_terms[:TRENDING_LIMIT]) or "No public trend feed available."
+    prompt = f"""
+Analyze this news opportunity for {country_name}.
+
+NEWS TITLE:
+{news_item.get('title', '')}
+
+NEWS SUMMARY:
+{news_item.get('description', '')}
+
+SOURCE:
+{news_item.get('source', '')}
+{news_item.get('link', '')}
+
+CURRENT PUBLIC TREND SIGNALS (Google Trends RSS; not exact volume):
+{trends_text}
+
+If web tools are available, research the topic and current search landscape. Check:
+1) whether the story is current and worth publishing now;
+2) the likely search intent;
+3) the best primary keyword and useful secondary keywords;
+4) competing/current pages or headlines;
+5) what useful information those pages appear to miss;
+6) whether reliable sources support the story.
+Do NOT invent keyword volume, keyword difficulty, rankings, or competitors. If exact metrics are unavailable, say so.
+
+Return ONLY JSON:
+{{
+  "publish": true,
+  "reason": "short evidence-based reason",
+  "trend_score": 0,
+  "seo_score_before_writing": 0,
+  "primary_keyword": "...",
+  "secondary_keywords": ["...", "..."],
+  "search_intent": "news|informational|navigational|mixed",
+  "content_angle": "specific useful angle",
+  "competitor_gaps": ["..."],
+  "recommended_title": "...",
+  "meta_description": "...",
+  "slug": "...",
+  "source_quality": 0,
+  "evidence_notes": "..."
+}}
+"""
+    raw = generate_with_groq_compound(prompt, max_tokens=3500) if SEO_RESEARCH_ENABLED else None
+    data = _clean_json(raw)
+    if not data:
+        title = news_item.get("title", "News")
+        slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:90] or "news"
+        score = trend_score_heuristic(news_item, trend_terms)
+        data = {
+            "publish": True,
+            "reason": "Fallback analysis based on current RSS signals.",
+            "trend_score": score,
+            "seo_score_before_writing": 55,
+            "primary_keyword": title[:80],
+            "secondary_keywords": [],
+            "search_intent": "news",
+            "content_angle": "Explain what happened, why it matters, and what is confirmed.",
+            "competitor_gaps": [],
+            "recommended_title": title,
+            "meta_description": title[:155],
+            "slug": slug,
+            "source_quality": 50,
+            "evidence_notes": "Web SEO research unavailable; fallback used.",
+        }
+    data["trend_score"] = int(max(0, min(100, data.get("trend_score", 0))))
+    data["seo_score_before_writing"] = int(max(0, min(100, data.get("seo_score_before_writing", 0))))
+    data["source_quality"] = int(max(0, min(100, data.get("source_quality", 0))))
+    data["secondary_keywords"] = data.get("secondary_keywords") or []
+    data["competitor_gaps"] = data.get("competitor_gaps") or []
+    return data
+
+
+def research_story(news_item):
+    """Current-source verification before writing."""
+    prompt = f"""
+Verify this news item using the web if available.
+Title: {news_item.get('title', '')}
+Summary: {news_item.get('description', '')}
+Source name: {news_item.get('source', '')}
+Source URL: {news_item.get('link', '')}
+
+Find the original/reliable source and confirm the core facts. Do not guess.
+Return ONLY JSON:
+{{
+  "verified": true,
+  "confidence": 0,
+  "confirmed_facts": ["..."],
+  "uncertain_claims": ["..."],
+  "source_urls": ["..."],
+  "source_names": ["..."]
+}}
+"""
+    raw = generate_with_groq_compound(prompt, max_tokens=3000) if SEO_RESEARCH_ENABLED else None
+    data = _clean_json(raw)
+    if not data:
+        return {
+            "verified": bool(news_item.get("link")),
+            "confidence": 50 if news_item.get("link") else 20,
+            "confirmed_facts": [news_item.get("description", "")],
+            "uncertain_claims": [],
+            "source_urls": [news_item.get("link", "")],
+            "source_names": [news_item.get("source", "")],
+        }
+    return data
+
+
+def seo_score_local(article_data):
+    """Local transparent SEO score; does not pretend to be a Google score."""
+    title = str(article_data.get("title", ""))
+    content = str(article_data.get("content", ""))
+    keyword = str(article_data.get("primary_keyword", "")).strip().lower()
+    meta = str(article_data.get("meta_description", ""))
+    score = 0
+    if keyword and keyword in title.lower(): score += 20
+    if 35 <= len(title) <= 70: score += 15
+    if 120 <= len(meta) <= 160: score += 15
+    if keyword and keyword in content.lower(): score += 15
+    if len(content.split()) >= 450: score += 10
+    if article_data.get("secondary_keywords"): score += 10
+    if article_data.get("faq"): score += 5
+    if article_data.get("search_intent"): score += 5
+    if article_data.get("content_angle"): score += 5
+    return min(100, score)
+
+
+def generate_article(news_item, country, seo_plan=None, verification=None):
+    country_info = COUNTRIES.get(country, COUNTRIES["ma"])
+    country_name = country_info["name"]
+    seo_plan = seo_plan or {}
+    verification = verification or {}
+    prompt = f"""
+Create a high-quality, original news article based ONLY on the verified material below.
+
+COUNTRY: {country_name}
+ORIGINAL HEADLINE: {news_item.get('title', '')}
+RSS SUMMARY: {news_item.get('description', '')}
+SOURCE: {news_item.get('source', '')} / {news_item.get('link', '')}
+
+SEO PLAN:
+Primary keyword: {seo_plan.get('primary_keyword', '')}
+Secondary keywords: {json.dumps(seo_plan.get('secondary_keywords', []), ensure_ascii=False)}
+Search intent: {seo_plan.get('search_intent', 'news')}
+Content angle: {seo_plan.get('content_angle', '')}
+Competitor gaps: {json.dumps(seo_plan.get('competitor_gaps', []), ensure_ascii=False)}
+Recommended title: {seo_plan.get('recommended_title', '')}
+
+VERIFICATION:
+{json.dumps(verification, ensure_ascii=False)}
+
+Rules:
+- Discuss the actual news event, not AI or generic filler.
+- Do not invent facts, statistics, quotes, dates, names, or causes.
+- If a detail is uncertain, explicitly say it is not confirmed.
+- Add useful context and explain why the event matters.
+- Use the primary keyword naturally; never keyword-stuff.
+- Do not copy the source wording.
+- Use clear H2-style section headings inside content.
+- 500-900 words when the evidence supports it; do not pad the article.
+- Generate 3-5 FAQs only when the answers are supported by the evidence.
+
+Return ONLY JSON:
+{{
+  "title": "SEO-friendly editorial title",
+  "content": "article text with headings",
+  "category": "Politics|Business|Technology|Sports|World|Health|Entertainment|Science|Other",
+  "image_prompt": "realistic editorial news image description",
+  "primary_keyword": "...",
+  "secondary_keywords": ["..."],
+  "search_intent": "news|informational|navigational|mixed",
+  "seo_title": "title for search results",
+  "meta_description": "120-160 characters",
+  "slug": "short-keyword-rich-slug",
+  "faq": [{{"question":"...","answer":"..."}}]
+}}
+"""
+    raw = generate_with_groq(prompt)
+    data = _clean_json(raw)
+    if not data:
+        return None
+    data["primary_keyword"] = data.get("primary_keyword") or seo_plan.get("primary_keyword", news_item.get("title", ""))
+    data["secondary_keywords"] = data.get("secondary_keywords") or seo_plan.get("secondary_keywords", [])
+    data["search_intent"] = data.get("search_intent") or seo_plan.get("search_intent", "news")
+    data["seo_title"] = data.get("seo_title") or data.get("title", "")
+    data["meta_description"] = seo_description(data.get("meta_description") or data.get("content", ""), 160)
+    data["slug"] = re.sub(r"[^a-z0-9]+", "-", str(data.get("slug") or data.get("title", "")).lower()).strip("-")[:90] or "news"
+    data["faq"] = data.get("faq") or []
+    data["content_angle"] = seo_plan.get("content_angle", "")
+    return data
+
+
+def quality_check(article_data, news_item, verification, seo_plan):
+    prompt = f"""
+Audit this proposed news article for publication.
+
+ARTICLE:
+Title: {article_data.get('title', '')}
+Content:
+{article_data.get('content', '')}
+
+PRIMARY KEYWORD: {article_data.get('primary_keyword', '')}
+SEO TITLE: {article_data.get('seo_title', '')}
+META: {article_data.get('meta_description', '')}
+
+SOURCE ITEM:
+{json.dumps(news_item, ensure_ascii=False)}
+
+VERIFICATION:
+{json.dumps(verification, ensure_ascii=False)}
+
+SEO PLAN:
+{json.dumps(seo_plan, ensure_ascii=False)}
+
+Score these independently from 0-100:
+- factual_accuracy
+- originality
+- usefulness
+- readability
+- seo
+- source_quality
+- overall
+
+Reject if the article makes unsupported claims or is mostly a rewrite with little value.
+Return ONLY JSON:
+{{
+  "publish": true,
+  "factual_accuracy": 0,
+  "originality": 0,
+  "usefulness": 0,
+  "readability": 0,
+  "seo": 0,
+  "source_quality": 0,
+  "overall": 0,
+  "issues": ["..."],
+  "fixes": ["..."]
+}}
+"""
+    raw = generate_with_groq_compound(prompt, max_tokens=3000) if SEO_RESEARCH_ENABLED else None
+    data = _clean_json(raw)
+    if not data:
+        local = seo_score_local(article_data)
+        return {
+            "publish": local >= SEO_MIN_SCORE,
+            "factual_accuracy": 70,
+            "originality": 70,
+            "usefulness": 70,
+            "readability": 75,
+            "seo": local,
+            "source_quality": int(seo_plan.get("source_quality", 50)),
+            "overall": local,
+            "issues": ["Automated web audit unavailable."],
+            "fixes": [],
+        }
+    for key in ["factual_accuracy", "originality", "usefulness", "readability", "seo", "source_quality", "overall"]:
+        data[key] = int(max(0, min(100, data.get(key, 0))))
+    return data
+
+
+def optimize_article(article_data, audit, seo_plan, news_item, verification):
+    if audit.get("overall", 0) >= max(SEO_MIN_SCORE, QUALITY_MIN_SCORE):
+        return article_data
+    prompt = f"""
+Improve this news article using the audit. Keep every factual claim supported.
+Do NOT add unsupported facts.
+
+ARTICLE:
+{json.dumps(article_data, ensure_ascii=False)}
+
+AUDIT:
+{json.dumps(audit, ensure_ascii=False)}
+
+SEO PLAN:
+{json.dumps(seo_plan, ensure_ascii=False)}
+
+Return ONLY the same JSON structure as the article, with the improved title,
+content, SEO title, meta description, keywords, slug and FAQs.
+"""
+    raw = generate_with_groq(prompt)
+    data = _clean_json(raw)
+    if not data:
+        return article_data
+    data["primary_keyword"] = data.get("primary_keyword") or article_data.get("primary_keyword")
+    data["secondary_keywords"] = data.get("secondary_keywords") or article_data.get("secondary_keywords", [])
+    data["search_intent"] = data.get("search_intent") or article_data.get("search_intent", "news")
+    data["seo_title"] = data.get("seo_title") or article_data.get("seo_title") or data.get("title", "")
+    data["meta_description"] = seo_description(data.get("meta_description") or data.get("content", ""), 160)
+    data["slug"] = re.sub(r"[^a-z0-9]+", "-", str(data.get("slug") or data.get("title", "")).lower()).strip("-")[:90] or "news"
+    data["faq"] = data.get("faq") or article_data.get("faq", [])
+    return data
+
+
+def build_schema(article_id, country, lang, article, faq):
+    url = absolute_url(article_path(article_id, country, lang))
+    graph = [
+        {
+            "@type": "NewsArticle",
+            "@id": url + "#article",
+            "mainEntityOfPage": {"@type": "WebPage", "@id": url},
+            "headline": article.get("seo_title") or article.get("title"),
+            "description": article.get("meta_description") or seo_description(article.get("content", "")),
+            "image": [article.get("image", "")],
+            "datePublished": str(article.get("created_at", "")),
+            "author": {"@type": "Organization", "name": "Corvex News"},
+            "publisher": {"@type": "Organization", "name": "Corvex News"},
+        }
+    ]
+    if faq:
+        graph.append({
+            "@type": "FAQPage",
+            "mainEntity": [
+                {"@type": "Question", "name": x.get("question", ""),
+                 "acceptedAnswer": {"@type": "Answer", "text": x.get("answer", "")}}
+                for x in faq if x.get("question") and x.get("answer")
+            ]
+        })
+    return {"@context": "https://schema.org", "@graph": graph}
+
+
+def build_website_schema():
+    """Organization + WebSite JSON-LD for the homepage (real schema,
+    not a leftover from the article template)."""
+    home_url = absolute_url("/")
+    return {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": home_url + "#organization",
+                "name": "Corvex News",
+                "url": home_url,
+            },
+            {
+                "@type": "WebSite",
+                "@id": home_url + "#website",
+                "url": home_url,
+                "name": "Corvex News",
+                "publisher": {"@id": home_url + "#organization"},
+            },
+        ],
+    }
+
+
+# ============================================================
+# GENERATE ARTICLE
+# ============================================================
 
 # ============================================================
 # TRANSLATION
@@ -1267,114 +1691,72 @@ def article_exists(country, source_url):
 # SAVE ARTICLE
 # ============================================================
 
-def save_article(country, news_item, article_data, translations):
+def save_article(country, news_item, article_data, translations, audit=None, seo_plan=None):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-
         country_info = COUNTRIES.get(country, COUNTRIES["ma"])
         region = country_info["region"]
-
         category = article_data.get("category", "News")
-
         title_en = article_data.get("title", news_item["title"])
         content_en = article_data.get("content", "")
-
-        # Arabic
         ar = translations.get("ar", {})
-        title_ar = ar.get("title", title_en)
-        content_ar = ar.get("content", content_en)
-
-        # French
         fr = translations.get("fr", {})
-        title_fr = fr.get("title", title_en)
-        content_fr = fr.get("content", content_en)
-
-        # Spanish
         es = translations.get("es", {})
-        title_es = es.get("title", title_en)
-        content_es = es.get("content", content_en)
-
-        image_url = generate_image(
-            article_data.get("image_prompt", news_item["title"])
-        )
-
-        cur.execute(
-            """
+        title_ar, content_ar = ar.get("title", title_en), ar.get("content", content_en)
+        title_fr, content_fr = fr.get("title", title_en), fr.get("content", content_en)
+        title_es, content_es = es.get("title", title_en), es.get("content", content_en)
+        image_url = generate_image(article_data.get("image_prompt", news_item["title"]))
+        seo_plan = seo_plan or {}
+        audit = audit or {}
+        faq = article_data.get("faq", [])
+        seo_title = article_data.get("seo_title") or title_en
+        meta_description = seo_description(article_data.get("meta_description") or content_en, 160)
+        slug = re.sub(r"[^a-z0-9]+", "-", str(article_data.get("slug") or title_en).lower()).strip("-")[:90] or "news"
+        primary_keyword = article_data.get("primary_keyword") or seo_plan.get("primary_keyword", "")
+        secondary_keywords = json.dumps(article_data.get("secondary_keywords") or [], ensure_ascii=False)
+        search_intent = article_data.get("search_intent") or seo_plan.get("search_intent", "news")
+        trend_score = int(seo_plan.get("trend_score", 0))
+        seo_score = int(audit.get("seo", seo_score_local(article_data)))
+        quality_score = int(audit.get("overall", 0))
+        seo_reason = json.dumps({
+            "reason": seo_plan.get("reason", ""),
+            "evidence": seo_plan.get("evidence_notes", ""),
+            "audit_issues": audit.get("issues", []),
+        }, ensure_ascii=False)
+        schema_json = json.dumps(build_schema(0, country, "en", {
+            "title": title_en, "seo_title": seo_title, "meta_description": meta_description,
+            "content": content_en, "image": image_url, "created_at": datetime.now().isoformat()
+        }, faq), ensure_ascii=False)
+        cur.execute("""
             INSERT INTO articles (
-                country,
-                region,
-                category,
-
-                title_ar,
-                title_fr,
-                title_en,
-                title_es,
-
-                content_ar,
-                content_fr,
-                content_en,
-                content_es,
-
-                image_url,
-
-                source_url,
-                source_name,
-
-                original_title,
-
-                created_at
+                country, region, category,
+                title_ar, title_fr, title_en, title_es,
+                content_ar, content_fr, content_en, content_es,
+                image_url, source_url, source_name, original_title,
+                seo_title, meta_description, slug, primary_keyword,
+                secondary_keywords, search_intent, trend_score, seo_score,
+                quality_score, seo_reason, faq_json, schema_json, created_at
+            ) VALUES (
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP
             )
-
-            VALUES (
-                %s, %s, %s,
-
-                %s, %s, %s, %s,
-
-                %s, %s, %s, %s,
-
-                %s,
-
-                %s, %s,
-
-                %s,
-
-                CURRENT_TIMESTAMP
-            )
-            """,
-            (
-                country,
-                region,
-                category,
-
-                title_ar,
-                title_fr,
-                title_en,
-                title_es,
-
-                content_ar,
-                content_fr,
-                content_en,
-                content_es,
-
-                image_url,
-
-                news_item.get("link", ""),
-                news_item.get("source", ""),
-
-                news_item.get("title", "")
-            )
-        )
-
+            ON CONFLICT DO NOTHING
+        """, (
+            country, region, category,
+            title_ar, title_fr, title_en, title_es,
+            content_ar, content_fr, content_en, content_es,
+            image_url, news_item.get("link", ""), news_item.get("source", ""), news_item.get("title", ""),
+            seo_title, meta_description, slug, primary_keyword,
+            secondary_keywords, search_intent, trend_score, seo_score,
+            quality_score, seo_reason, json.dumps(faq, ensure_ascii=False), schema_json
+        ))
         conn.commit()
-
-        cur.close()
-        conn.close()
-
-        print(f"-> SAVED [{country}] {title_en[:80]}")
-
-        return True
-
+        inserted = cur.rowcount > 0
+        cur.close(); conn.close()
+        if inserted:
+            print(f"-> SAVED [{country}] {title_en[:80]} | trend={trend_score} seo={seo_score} quality={quality_score}")
+        return inserted
     except Exception as e:
         print(f"!! Save article failed: {e}")
         return False
@@ -1386,85 +1768,54 @@ def save_article(country, news_item, article_data, translations):
 
 def process_country(country):
     print("\n====================================")
-    print(f"-> Robot checking country: {country}")
+    print(f"-> AI SEO Robot checking country: {country}")
     print("====================================")
-
-    # Update live status so visitors can see which country is being processed
     robot_status["current_country"] = country
-
     news = get_country_news(country)
-
+    trends = get_google_trends(country)
     if not news:
         print(f"!! No news found for {country}")
         return 0
-
     saved = 0
-
     for news_item in news:
-
         if saved >= ARTICLES_PER_COUNTRY:
             break
-
         source_url = news_item.get("link", "")
-
-        # Avoid duplicates
-        if source_url:
-            if article_exists(country, source_url):
-                print(f"-> Already exists: {news_item['title'][:70]}")
-                continue
-
-        print(f"\n-> Generating: {news_item['title']}")
-
-        article_data = generate_article(news_item, country)
-
+        if source_url and article_exists(country, source_url):
+            continue
+        print(f"\n-> Candidate: {news_item.get('title', '')}")
+        seo_plan = analyze_trend_and_seo(news_item, country, trends)
+        print(f"-> Trend={seo_plan.get('trend_score')} SEO opportunity={seo_plan.get('seo_score_before_writing')} publish={seo_plan.get('publish')}")
+        if not seo_plan.get("publish", True) or int(seo_plan.get("trend_score", 0)) < TREND_MIN_SCORE:
+            print("-> SKIPPED: weak trend/search opportunity")
+            continue
+        verification = research_story(news_item)
+        if not verification.get("verified", False) or int(verification.get("confidence", 0)) < 55:
+            print("-> SKIPPED: insufficient source verification")
+            continue
+        article_data = generate_article(news_item, country, seo_plan, verification)
         if not article_data:
             print("!! Article generation failed")
             continue
-
-        title = article_data.get("title", news_item["title"])
-        content = article_data.get("content", "")
-
+        audit = quality_check(article_data, news_item, verification, seo_plan)
+        if int(audit.get("overall", 0)) < QUALITY_MIN_SCORE:
+            print(f"-> Optimizing article (quality={audit.get('overall')})")
+            article_data = optimize_article(article_data, audit, seo_plan, news_item, verification)
+            audit = quality_check(article_data, news_item, verification, seo_plan)
+        if int(audit.get("factual_accuracy", 0)) < 75 or int(audit.get("overall", 0)) < QUALITY_MIN_SCORE:
+            print(f"-> SKIPPED after optimization: quality={audit.get('overall')} factual={audit.get('factual_accuracy')}")
+            continue
         translations = {}
-
-        # ====================================================
-        # Arabic
-        # ====================================================
-        print("-> Translating Arabic...")
-        ar = translate_article(title, content, "ar")
-        if ar:
-            translations["ar"] = ar
-
-        # ====================================================
-        # French
-        # ====================================================
-        print("-> Translating French...")
-        fr = translate_article(title, content, "fr")
-        if fr:
-            translations["fr"] = fr
-
-        # ====================================================
-        # Spanish
-        # ====================================================
-        print("-> Translating Spanish...")
-        es = translate_article(title, content, "es")
-        if es:
-            translations["es"] = es
-
-        # ====================================================
-        # Save
-        # ====================================================
-        success = save_article(country, news_item, article_data, translations)
-
+        for lang in ("ar", "fr", "es"):
+            translated = translate_article(article_data.get("title", news_item["title"]), article_data.get("content", ""), lang)
+            if translated:
+                translations[lang] = translated
+        success = save_article(country, news_item, article_data, translations, audit, seo_plan)
         if success:
             saved += 1
-            # Keep the live counter growing during the run
             robot_status["total_articles_this_run"] += 1
-
-        # Small pause
         time.sleep(2)
-
     print(f"-> Country {country}: {saved} new articles saved")
-
     return saved
 
 
@@ -1609,7 +1960,8 @@ def home():
             COUNTRIES[robot_status["current_country"]]["name"]
             if robot_status["current_country"] in COUNTRIES
             else None
-        )
+        ),
+        website_schema=build_website_schema(),
     )
 
 
@@ -1634,6 +1986,27 @@ def ads_txt():
 # ============================================================
 # ARTICLE DETAILS
 # ============================================================
+
+def get_related_articles(article_id, country, category, primary_keyword, limit=5):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        kw = f"%{(primary_keyword or '').strip()}%"
+        cur.execute("""
+            SELECT id, title_en, category
+            FROM articles
+            WHERE id <> %s AND country = %s
+              AND (category = %s OR primary_keyword ILIKE %s)
+            ORDER BY CASE WHEN category = %s THEN 0 ELSE 1 END, created_at DESC
+            LIMIT %s
+        """, (article_id, country, category, kw, category, limit))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "title": r[1], "category": r[2]} for r in rows]
+    except Exception as e:
+        print(f"!! Related articles failed: {e}")
+        return []
+
 
 @app.route("/article/<int:article_id>")
 def article_detail(article_id):
@@ -1667,7 +2040,9 @@ def article_detail(article_id):
                 source_name,
                 original_title,
                 created_at,
-                country
+                country,
+                seo_title, meta_description, slug, primary_keyword, secondary_keywords,
+                search_intent, trend_score, seo_score, quality_score, seo_reason, faq_json, schema_json
             FROM articles
             WHERE id = %s
             LIMIT 1
@@ -1691,7 +2066,19 @@ def article_detail(article_id):
                 "source_name": row[6],
                 "original_title": row[7],
                 "created_at": row[8],
-                "country": row[9]
+                "country": row[9],
+                "seo_title": row[10],
+                "meta_description": row[11],
+                "slug": row[12],
+                "primary_keyword": row[13],
+                "secondary_keywords": row[14],
+                "search_intent": row[15],
+                "trend_score": row[16],
+                "seo_score": row[17],
+                "quality_score": row[18],
+                "seo_reason": row[19],
+                "faq": json.loads(row[20] or "[]"),
+                "schema": json.loads(row[21] or "{}")
             }
 
     except Exception as e:
@@ -1699,6 +2086,11 @@ def article_detail(article_id):
 
     if not article:
         return ("Article not found", 404)
+
+    article["schema"] = build_schema(article_id, article["country"], lang, article, article.get("faq", []))
+    article["related"] = get_related_articles(
+        article_id, article["country"], article.get("category"), article.get("primary_keyword", "")
+    )
 
     alternate_urls = {
         code: absolute_url(article_path(article_id, article["country"], code))
@@ -1875,6 +2267,31 @@ def sitemap_xml():
     }
 
 
+@app.route("/seo-status")
+def seo_status():
+    """Public read-only diagnostics for the automated SEO pipeline."""
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(*), COALESCE(AVG(seo_score),0), COALESCE(AVG(quality_score),0), COALESCE(AVG(trend_score),0)
+            FROM articles
+        """)
+        total, avg_seo, avg_quality, avg_trend = cur.fetchone()
+        cur.close(); conn.close()
+        return jsonify({
+            "articles": total,
+            "avg_seo_score": round(float(avg_seo), 1),
+            "avg_quality_score": round(float(avg_quality), 1),
+            "avg_trend_score": round(float(avg_trend), 1),
+            "seo_research_enabled": SEO_RESEARCH_ENABLED,
+            "seo_min_score": SEO_MIN_SCORE,
+            "quality_min_score": QUALITY_MIN_SCORE,
+            "trend_min_score": TREND_MIN_SCORE,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================
 # MANUAL ROBOT TEST
 # ============================================================
@@ -2007,9 +2424,16 @@ def health():
         "groq_keys_total": len(GROQ_KEYS),
         "groq_keys_news": len(NEWS_GROQ_KEYS),
         "groq_keys_jobs": len(JOB_GROQ_KEYS),
+        "groq_model_news": GROQ_MODEL,
+        "groq_model_jobs": JOBS_GROQ_MODEL,
+        "groq_model_seo": SEO_GROQ_MODEL,
         "database": bool(DATABASE_URL),
         "robot": "running" if robot_status["running"] else "idle",
         "jobs_robot": "running" if jobs_robot_status["running"] else "idle",
+        "seo_research_enabled": SEO_RESEARCH_ENABLED,
+        "seo_min_score": SEO_MIN_SCORE,
+        "quality_min_score": QUALITY_MIN_SCORE,
+        "trend_min_score": TREND_MIN_SCORE,
     }
 
 
@@ -2057,7 +2481,7 @@ header.site-header {
     letter-spacing: 0.5px;
     color: var(--accent);
 }
-.controls { display: flex; gap: 10px; flex-wrap: wrap; }
+.controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .controls select {
     background: var(--surface-2);
     color: var(--text);
@@ -2168,6 +2592,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
     font-size: 0.9rem;
 }
 .source a { color: var(--accent); font-weight: 600; }
+.faq { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); }
+.faq h2 { font-size: 1.35rem; }
+.faq h3 { margin: 18px 0 5px; font-size: 1rem; }
+.faq p { color: var(--text-dim); margin: 0; }
 footer {
     text-align: center;
     color: var(--text-dim);
@@ -2175,6 +2603,30 @@ footer {
     padding: 30px 20px;
     border-top: 1px solid var(--border);
     margin-top: 30px;
+}
+
+/* ============================================================
+   RESPONSIVE / MOBILE
+   ============================================================ */
+@media (max-width: 768px) {
+    header.site-header { padding: 12px 14px; }
+    .logo { font-size: 1.1rem; }
+    .controls { width: 100%; justify-content: space-between; }
+    .controls select { flex: 1; min-width: 0; font-size: 0.85rem; padding: 9px 8px; }
+    main { padding: 16px 14px 40px; }
+    .hero h1 { font-size: 1.4rem; }
+    .grid { grid-template-columns: 1fr; gap: 14px; }
+    .card img { height: 190px; }
+    .article-header h1 { font-size: 1.4rem; }
+    .article-header img { max-height: 260px; }
+    .content { font-size: 1rem; }
+}
+
+@media (max-width: 420px) {
+    .controls { flex-direction: column; align-items: stretch; }
+    .controls form { width: 100%; }
+    .controls select { width: 100%; }
+    .hero h1 { font-size: 1.25rem; }
 }
 """
 
@@ -2195,6 +2647,15 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <link rel="alternate" hreflang="{{ code }}" href="{{ url }}">
 {% endfor %}
 
+<meta property="og:site_name" content="Corvex News">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Corvex News — {{ country_name }}">
+<meta property="og:description" content="{{ seo_description(country_name ~ ' latest news') }}">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Corvex News — {{ country_name }}">
+<meta name="twitter:description" content="{{ seo_description(country_name ~ ' latest news') }}">
+
 {% if ga_id %}
 <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
 <script>
@@ -2208,6 +2669,9 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 {% if adsense_client %}
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
  crossorigin="anonymous"></script>
+{% endif %}
+{% if website_schema %}
+<script type="application/ld+json">{{ website_schema | tojson }}</script>
 {% endif %}
 
 <style>{{ base_css }}</style>
@@ -2289,13 +2753,24 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ article.title }} — Corvex News</title>
-<meta name="description" content="{{ seo_description(article.content) }}">
+<title>{{ article.seo_title or article.title }} — Corvex News</title>
+<meta name="description" content="{{ article.meta_description or seo_description(article.content) }}">
+<meta name="keywords" content="{{ article.primary_keyword }}{% if article.secondary_keywords %}, {{ article.secondary_keywords }}{% endif %}">
 <link rel="canonical" href="{{ canonical_url }}">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
 {% for code, url in alternate_urls.items() %}
 <link rel="alternate" hreflang="{{ code }}" href="{{ url }}">
 {% endfor %}
+
+<meta property="og:site_name" content="Corvex News">
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{ article.seo_title or article.title }}">
+<meta property="og:description" content="{{ article.meta_description or seo_description(article.content) }}">
+<meta property="og:url" content="{{ canonical_url }}">
+{% if article.image %}<meta property="og:image" content="{{ article.image }}">{% endif %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ article.seo_title or article.title }}">
+<meta name="twitter:description" content="{{ article.meta_description or seo_description(article.content) }}">
 
 {% if ga_id %}
 <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
@@ -2310,6 +2785,9 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
 {% if adsense_client %}
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
  crossorigin="anonymous"></script>
+{% endif %}
+{% if article.schema %}
+<script type="application/ld+json">{{ article.schema | tojson }}</script>
 {% endif %}
 
 <style>{{ base_css }}</style>
@@ -2334,6 +2812,27 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
         <h1>{{ article.title }}</h1>
 
         <div class="content">{{ article.content }}</div>
+
+        {% if article.related %}
+        <section class="faq">
+            <h2>Related News</h2>
+            <ul>
+            {% for related in article.related %}
+                <li><a href="{{ url_for('article_detail', article_id=related.id, country=current_country, lang=current_language) }}">{{ related.title }}</a></li>
+            {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        {% if article.faq %}
+        <section class="faq">
+            <h2>Frequently Asked Questions</h2>
+            {% for item in article.faq %}
+                <h3>{{ item.question }}</h3>
+                <p>{{ item.answer }}</p>
+            {% endfor %}
+        </section>
+        {% endif %}
 
         <div class="disclaimer">
            please check the original source for verification.
@@ -2417,6 +2916,12 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
     font-size: 0.85rem;
 }
 .job-source a { color: var(--accent); font-weight: 600; }
+
+@media (max-width: 768px) {
+    .job-card { padding: 14px 16px; }
+    .cat-tabs { gap: 6px; }
+    .cat-tabs a { padding: 6px 11px; font-size: 0.8rem; }
+}
 </style>
 </head>
 <body>
@@ -2554,6 +3059,7 @@ scheduler.start()
 
 print("-> News Robot Scheduler Started")
 print(f"-> Groq API keys — news: {len(NEWS_GROQ_KEYS)} | jobs: {len(JOB_GROQ_KEYS)}")
+print(f"-> Groq models — news: {GROQ_MODEL} | jobs: {JOBS_GROQ_MODEL} | seo: {SEO_GROQ_MODEL}")
 
 # ============================================================
 # LOCAL DEVELOPMENT
