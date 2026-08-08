@@ -1666,25 +1666,6 @@ HOME_TEMPLATE = """<!DOCTYPE html>
         <h1>Latest News — {{ country_name }}</h1>
         <p>News selected for your country and language.</p>
     </div>
-
-    <div class="robot-banner">
-        {% if robot_status.running %}
-            <span class="robot-dot"></span>
-            <span>
-                Robot is live — currently gathering news
-                {% if current_country_name %}for {{ current_country_name }}{% endif %}.
-                {{ robot_status.total_articles_this_run }} article(s) saved this run.
-            </span>
-        {% else %}
-            <span>
-                Robot idle. It refreshes news every {{ robot_interval }} hours.
-                {% if robot_status.last_run_saved %}
-                    Last run saved {{ robot_status.last_run_saved }} article(s).
-                {% endif %}
-            </span>
-        {% endif %}
-    </div>
-
     {% if articles %}
         <div class="grid">
         {% for article in articles %}
