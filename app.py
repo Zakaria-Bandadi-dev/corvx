@@ -48,11 +48,27 @@ GROQ_KEYS = [
 # Remove empty variables
 GROQ_KEYS = [key.strip() for key in GROQ_KEYS if key and key.strip()]
 
-# Current Groq key
+# ------------------------------------------------------------
+# JOBS SECTION: 3 dedicated keys out of the 5.
+# NEWS keeps working exactly like before, but only rotates over
+# the remaining 2 keys (so it never collides with the jobs robot).
+# If less than 5 keys are configured, we still split as evenly
+# as possible so nothing crashes.
+# ------------------------------------------------------------
+NEWS_GROQ_KEYS = GROQ_KEYS[:2] if len(GROQ_KEYS) >= 2 else GROQ_KEYS
+JOB_GROQ_KEYS = GROQ_KEYS[2:5] if len(GROQ_KEYS) > 2 else GROQ_KEYS
+
+# Current Groq key (news)
 current_groq_key = 0
+
+# Current Groq key (jobs)
+current_job_groq_key = 0
 
 # Prevent two robot jobs from running simultaneously
 robot_lock = Lock()
+
+# Prevent two jobs-robot runs from running simultaneously
+jobs_robot_lock = Lock()
 
 # ============================================================
 # ROBOT LIVE STATUS (transparency: show visitors the robot works)
@@ -77,6 +93,66 @@ ROBOT_INTERVAL_HOURS = 6
 
 # Number of articles per country when robot runs
 ARTICLES_PER_COUNTRY = 5
+
+# ============================================================
+# JOBS ROBOT SETTINGS
+# ============================================================
+
+# groq/compound: عندو built-in tools (web_search + visit_website)
+# باش يدخل بنفسه للمواقع ديال الخدمة ويقلب على العروض الجداد.
+JOBS_GROQ_MODEL = "groq/compound"
+
+# كل بغا نهار (ساعات)
+JOBS_ROBOT_INTERVAL_HOURS = 24
+
+jobs_robot_status = {
+    "running": False,
+    "current_site": None,
+    "last_run_start": None,
+    "last_run_end": None,
+    "last_run_saved": 0,
+    "total_offers_this_run": 0,
+}
+
+# ============================================================
+# JOB SITES (مقسمين على 4 فئات)
+# ============================================================
+
+JOB_SITES = {
+    "private_ma": {
+        "label": "الخدمة فالمغرب (القطاع الخاص)",
+        "sites": [
+            ("LinkedIn", "https://www.linkedin.com/jobs/jobs-in-morocco/"),
+            ("ReKrute", "https://www.rekrute.com/"),
+            ("Emploitic", "https://emploitic.com/"),
+            ("Dreamjob", "https://www.dreamjob.ma/"),
+            ("Careerlink", "https://careerlink.ma/"),
+        ],
+    },
+    "public_ma": {
+        "label": "الوظائف العمومية (المغرب)",
+        "sites": [
+            ("Emploi Public", "https://www.emploi-public.ma/"),
+            ("ANAPEC", "https://www.anapec.org/"),
+        ],
+    },
+    "gulf": {
+        "label": "الخدمة فالخليج",
+        "sites": [
+            ("Bayt", "https://www.bayt.com/"),
+            ("Naukrigulf", "https://www.naukrigulf.com/"),
+        ],
+    },
+    "abroad": {
+        "label": "الخدمة فالخارج (أوروبا / كندا)",
+        "sites": [
+            ("ANAPEC Infitah", "https://skills.ma/infitah/"),
+            ("EURES", "https://eures.europa.eu/"),
+            ("France Travail", "https://candidat.francetravail.fr/"),
+            ("Guichet-Emplois Canada", "https://www.guichetemplois.gc.ca/"),
+        ],
+    },
+}
 
 # ============================================================
 # COUNTRIES
@@ -384,6 +460,81 @@ def init_db():
         print(f"!! Database initialization failed: {e}")
 
 
+def init_jobs_db():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_offers (
+                id SERIAL PRIMARY KEY,
+
+                category TEXT,
+                source_site TEXT,
+                source_url TEXT,
+
+                title_ar TEXT,
+                company_ar TEXT,
+                description_ar TEXT,
+                conditions_ar TEXT,
+                documents_ar TEXT,
+                how_to_apply_ar TEXT,
+                deadline TEXT,
+
+                offer_hash TEXT UNIQUE,
+
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # Migration (نفس الأسلوب ديال articles، احتياطا)
+        columns = {
+            "category": "TEXT",
+            "source_site": "TEXT",
+            "source_url": "TEXT",
+            "title_ar": "TEXT",
+            "company_ar": "TEXT",
+            "description_ar": "TEXT",
+            "conditions_ar": "TEXT",
+            "documents_ar": "TEXT",
+            "how_to_apply_ar": "TEXT",
+            "deadline": "TEXT",
+            "offer_hash": "TEXT",
+        }
+
+        for column, column_type in columns.items():
+            cur.execute(
+                f"""
+                ALTER TABLE job_offers
+                ADD COLUMN IF NOT EXISTS {column} {column_type};
+                """
+            )
+
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_job_offers_hash
+            ON job_offers(offer_hash);
+        """)
+
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_job_offers_category
+            ON job_offers(category);
+        """)
+
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_job_offers_created_at
+            ON job_offers(created_at DESC);
+        """)
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        print("-> Jobs Database Ready")
+
+    except Exception as e:
+        print(f"!! Jobs database initialization failed: {e}")
+
+
 # ============================================================
 # GROQ ROTATION
 # ============================================================
@@ -391,17 +542,17 @@ def init_db():
 def generate_with_groq(prompt):
     global current_groq_key
 
-    if not GROQ_KEYS:
-        print("!! NO GROQ API KEYS FOUND")
+    if not NEWS_GROQ_KEYS:
+        print("!! NO GROQ API KEYS FOUND (news)")
         return None
 
-    total_keys = len(GROQ_KEYS)
+    total_keys = len(NEWS_GROQ_KEYS)
 
     # Try every key
     for attempt in range(total_keys):
 
         key_index = current_groq_key
-        api_key = GROQ_KEYS[key_index]
+        api_key = NEWS_GROQ_KEYS[key_index]
 
         print(f"-> Using Groq API #{key_index + 1}/{total_keys}")
 
@@ -469,6 +620,322 @@ def generate_with_groq(prompt):
 
     print("!! ALL GROQ KEYS FAILED")
     return None
+
+
+# ============================================================
+# GROQ ROTATION (JOBS — groq/compound with web_search tool)
+# ============================================================
+
+JOBS_SYSTEM_PROMPT = """أنت مساعد كيقلب على عروض الخدمة الحقيقية فالمواقع الرسمية.
+خاصك تستعمل الأدوات المتوفرة عندك (web_search و visit_website) باش تدخل
+للموقع المعطى وتلقى آخر 5 إلى 10 عروض خدمة جداد الموجودين فيه دابا.
+
+لكل عرض، رجع المعلومات التالية بالعربية فقط (حتى ولو كان الموقع الأصلي
+بالفرنسية ولا بالإنجليزية، ترجم/لخص بالعربية):
+
+- title_ar: عنوان المنصب
+- company_ar: اسم الشركة أو المؤسسة
+- description_ar: ملخص قصير للمهمة
+- conditions_ar: الشروط (المستوى الدراسي، الديبلوم، التجربة، الحرفة...)
+- documents_ar: الوثائق المطلوبة للترشيح (CV، ديبلوم، CIN، رسالة تحفيزية...)
+- how_to_apply_ar: كيفاش تدير الترشيح بالضبط، خطوة بخطوة
+- deadline: آخر أجل للترشيح إلا كان مذكور، وإلا اكتب "غير محدد"
+- source_url: الرابط المباشر ديال العرض إلا قدرتي تلقاه
+
+رجع الجواب فقط كـ JSON array صحيح، بلا أي شرح، بلا Markdown، بهاد الشكل بالضبط:
+
+[
+  {
+    "title_ar": "...",
+    "company_ar": "...",
+    "description_ar": "...",
+    "conditions_ar": "...",
+    "documents_ar": "...",
+    "how_to_apply_ar": "...",
+    "deadline": "...",
+    "source_url": "..."
+  }
+]
+
+إلا ما لقيتيش عروض جداد، رجع array فارغ: []
+"""
+
+
+def generate_with_groq_jobs(user_prompt):
+    """
+    نفس فكرة generate_with_groq، ولكن:
+    - كتدور غير على JOB_GROQ_KEYS (3 keys مخصصين للخدمة)
+    - كتستعمل model groq/compound مع built-in tools (web_search, visit_website)
+    """
+    global current_job_groq_key
+
+    if not JOB_GROQ_KEYS:
+        print("!! NO GROQ API KEYS FOUND (jobs)")
+        return None
+
+    total_keys = len(JOB_GROQ_KEYS)
+
+    for attempt in range(total_keys):
+
+        key_index = current_job_groq_key
+        api_key = JOB_GROQ_KEYS[key_index]
+
+        print(f"-> [JOBS] Using Groq API #{key_index + 1}/{total_keys}")
+
+        try:
+            client = Groq(api_key=api_key)
+
+            response = client.chat.completions.create(
+                model=JOBS_GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": JOBS_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                compound_custom={
+                    "tools": {"enabled_tools": ["web_search", "visit_website"]}
+                },
+                temperature=0.2,
+                max_tokens=4000,
+            )
+
+            result = response.choices[0].message.content
+
+            if not result:
+                raise Exception("Empty Groq response")
+
+            print(f"-> [JOBS] Groq API #{key_index + 1} SUCCESS")
+
+            current_job_groq_key = (current_job_groq_key + 1) % total_keys
+
+            return result.strip()
+
+        except Exception as e:
+            error = str(e)
+
+            print(f"!! [JOBS] Groq API #{key_index + 1} FAILED: {error}")
+
+            current_job_groq_key = (current_job_groq_key + 1) % total_keys
+
+            if "429" in error or "rate_limit" in error.lower():
+                print(f"!! [JOBS] API #{key_index + 1} RATE LIMITED")
+                continue
+
+            continue
+
+    print("!! [JOBS] ALL GROQ KEYS FAILED")
+    return None
+
+
+def _extract_jobs_json(raw_text):
+    """كينظف الجواب ديال compound (كيحيد ```json إلخ) ويحوله ل list."""
+    if not raw_text:
+        return []
+
+    text = raw_text.strip()
+
+    if text.startswith("```"):
+        text = text.replace("```json", "").replace("```", "").strip()
+
+    start = text.find("[")
+    end = text.rfind("]")
+
+    if start == -1 or end == -1:
+        return []
+
+    try:
+        return json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return []
+
+
+def make_offer_hash(site_name, offer):
+    """hash فريد لكل عرض (site + title + company + url) باش نديرو dedup."""
+    import hashlib
+
+    base = "|".join([
+        site_name,
+        (offer.get("title_ar") or "").strip().lower(),
+        (offer.get("company_ar") or "").strip().lower(),
+        (offer.get("source_url") or "").strip().lower(),
+    ])
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
+def search_site_for_jobs(site_name, site_url):
+    """كيطلب من groq/compound يقلب على عروض جداد فموقع معين."""
+    user_prompt = f"""قلب على آخر عروض الخدمة الجداد فهاد الموقع: {site_name} ({site_url})
+
+خاصك تدخل للموقع (visit_website) و/أو تدير بحث (web_search) باش تلقى
+العروض الحقيقية الموجودة دابا، ماشي عروض قديمة ولا مختلقة."""
+
+    raw = generate_with_groq_jobs(user_prompt)
+    offers = _extract_jobs_json(raw)
+
+    for offer in offers:
+        offer["source_site"] = site_name
+        offer["offer_hash"] = make_offer_hash(site_name, offer)
+
+    return offers
+
+
+# ============================================================
+# JOBS: CHECK DUPLICATE + SAVE
+# ============================================================
+
+def job_offer_exists(offer_hash):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            "SELECT id FROM job_offers WHERE offer_hash = %s LIMIT 1",
+            (offer_hash,)
+        )
+
+        result = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        return result is not None
+
+    except Exception as e:
+        print(f"!! [JOBS] Duplicate check failed: {e}")
+        return False
+
+
+def save_job_offer(category, offer):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            INSERT INTO job_offers (
+                category,
+                source_site,
+                source_url,
+                title_ar,
+                company_ar,
+                description_ar,
+                conditions_ar,
+                documents_ar,
+                how_to_apply_ar,
+                deadline,
+                offer_hash,
+                created_at
+            )
+            VALUES (
+                %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s,
+                %s, %s,
+                CURRENT_TIMESTAMP
+            )
+            ON CONFLICT (offer_hash) DO NOTHING
+            """,
+            (
+                category,
+                offer.get("source_site"),
+                offer.get("source_url"),
+                offer.get("title_ar"),
+                offer.get("company_ar"),
+                offer.get("description_ar"),
+                offer.get("conditions_ar"),
+                offer.get("documents_ar"),
+                offer.get("how_to_apply_ar"),
+                offer.get("deadline"),
+                offer.get("offer_hash"),
+            )
+        )
+
+        conn.commit()
+
+        inserted = cur.rowcount > 0
+
+        cur.close()
+        conn.close()
+
+        return inserted
+
+    except Exception as e:
+        print(f"!! [JOBS] Save offer failed: {e}")
+        return False
+
+
+# ============================================================
+# JOBS ROBOT
+# ============================================================
+
+def process_job_category(category):
+    info = JOB_SITES[category]
+    saved = 0
+
+    for site_name, site_url in info["sites"]:
+        jobs_robot_status["current_site"] = f"{site_name} ({info['label']})"
+
+        print(f"\n-> [JOBS] Checking {site_name}...")
+
+        try:
+            offers = search_site_for_jobs(site_name, site_url)
+        except Exception as e:
+            print(f"!! [JOBS] {site_name} failed: {e}")
+            continue
+
+        for offer in offers:
+            offer_hash = offer.get("offer_hash")
+
+            if not offer_hash:
+                continue
+
+            if job_offer_exists(offer_hash):
+                # نفس العرض ديال قبل، ماكانزيدوهش
+                continue
+
+            if save_job_offer(category, offer):
+                saved += 1
+                jobs_robot_status["total_offers_this_run"] += 1
+                print(f"-> [JOBS] SAVED: {offer.get('title_ar', '')[:60]}")
+
+        time.sleep(2)
+
+    return saved
+
+
+def run_jobs_robot():
+    if not jobs_robot_lock.acquire(blocking=False):
+        print("!! [JOBS] Robot already running")
+        return
+
+    jobs_robot_status["running"] = True
+    jobs_robot_status["current_site"] = None
+    jobs_robot_status["last_run_start"] = datetime.now()
+    jobs_robot_status["total_offers_this_run"] = 0
+
+    try:
+        print("\n\n==========================================")
+        print(f"JOBS ROBOT STARTED {datetime.now()}")
+        print("==========================================")
+
+        for category in JOB_SITES.keys():
+            try:
+                process_job_category(category)
+            except Exception as e:
+                print(f"!! [JOBS] Category {category} failed: {e}")
+
+            time.sleep(2)
+
+        print("\n==========================================")
+        print(f"JOBS ROBOT FINISHED {datetime.now()}")
+        print("==========================================\n")
+
+    finally:
+        jobs_robot_status["running"] = False
+        jobs_robot_status["current_site"] = None
+        jobs_robot_status["last_run_end"] = datetime.now()
+        jobs_robot_status["last_run_saved"] = jobs_robot_status["total_offers_this_run"]
+
+        jobs_robot_lock.release()
 
 
 # ============================================================
@@ -1345,7 +1812,8 @@ def robots_txt():
         "User-agent: *\n"
         "Allow: /\n"
         "Disallow: /health\n"
-        "Disallow: /run-robot\n\n"
+        "Disallow: /run-robot\n"
+        "Disallow: /run-jobs-robot\n\n"
         f"Sitemap: {sitemap_url}\n"
     ), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
@@ -1423,6 +1891,112 @@ def manual_robot():
 
 
 # ============================================================
+# JOBS ROUTES
+# ============================================================
+
+@app.route("/jobs")
+def jobs_page():
+    category = request.args.get("category")
+
+    if category not in JOB_SITES:
+        category = None
+
+    offers = []
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if category:
+            cur.execute(
+                """
+                SELECT id, category, source_site, source_url,
+                       title_ar, company_ar, description_ar,
+                       conditions_ar, documents_ar, how_to_apply_ar,
+                       deadline, created_at
+                FROM job_offers
+                WHERE category = %s
+                ORDER BY created_at DESC
+                LIMIT 60
+                """,
+                (category,)
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, category, source_site, source_url,
+                       title_ar, company_ar, description_ar,
+                       conditions_ar, documents_ar, how_to_apply_ar,
+                       deadline, created_at
+                FROM job_offers
+                ORDER BY created_at DESC
+                LIMIT 60
+                """
+            )
+
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        for row in rows:
+            offers.append({
+                "id": row[0],
+                "category": row[1],
+                "source_site": row[2],
+                "source_url": row[3],
+                "title_ar": row[4],
+                "company_ar": row[5],
+                "description_ar": row[6],
+                "conditions_ar": row[7],
+                "documents_ar": row[8],
+                "how_to_apply_ar": row[9],
+                "deadline": row[10],
+                "created_at": row[11],
+            })
+
+    except Exception as e:
+        print(f"!! [JOBS] Page database error: {e}")
+
+    return render_template_string(
+        JOBS_TEMPLATE,
+        base_css=BASE_CSS,
+        offers=offers,
+        job_categories=JOB_SITES,
+        current_category=category,
+        ga_id=GA_ID,
+        adsense_client=ADSENSE_CLIENT,
+        jobs_robot_status=jobs_robot_status,
+        jobs_robot_interval=JOBS_ROBOT_INTERVAL_HOURS,
+    )
+
+
+@app.route("/jobs-status")
+def jobs_status_json():
+    data = dict(jobs_robot_status)
+
+    data["last_run_start"] = (
+        jobs_robot_status["last_run_start"].isoformat()
+        if jobs_robot_status["last_run_start"] else None
+    )
+    data["last_run_end"] = (
+        jobs_robot_status["last_run_end"].isoformat()
+        if jobs_robot_status["last_run_end"] else None
+    )
+
+    return jsonify(data)
+
+
+@app.route("/run-jobs-robot")
+def manual_jobs_robot():
+    run_jobs_robot()
+
+    return """
+    <h2>Jobs robot finished.</h2>
+    <a href="/jobs">Back to jobs page</a>
+    """
+
+
+# ============================================================
 # HEALTH CHECK
 # ============================================================
 
@@ -1430,9 +2004,12 @@ def manual_robot():
 def health():
     return {
         "status": "ok",
-        "groq_keys": len(GROQ_KEYS),
+        "groq_keys_total": len(GROQ_KEYS),
+        "groq_keys_news": len(NEWS_GROQ_KEYS),
+        "groq_keys_jobs": len(JOB_GROQ_KEYS),
         "database": bool(DATABASE_URL),
-        "robot": "running" if robot_status["running"] else "idle"
+        "robot": "running" if robot_status["running"] else "idle",
+        "jobs_robot": "running" if jobs_robot_status["running"] else "idle",
     }
 
 
@@ -1641,6 +2218,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
     <div class="logo">CORVEX NEWS</div>
 
     <div class="controls">
+        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
         <form method="get">
             <input type="hidden" name="country" value="{{ current_country }}">
             <select name="lang" onchange="this.form.submit()">
@@ -1783,10 +2361,162 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
 """
 
 # ============================================================
+# JOBS HTML
+# ============================================================
+
+JOBS_TEMPLATE = """<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>عروض الخدمة — Corvex News</title>
+<meta name="description" content="آخر عروض الخدمة فالمغرب، الخليج، وأوروبا وكندا.">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+
+{% if ga_id %}
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ ga_id }}');
+</script>
+{% endif %}
+
+{% if adsense_client %}
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+ crossorigin="anonymous"></script>
+{% endif %}
+
+<style>
+{{ base_css }}
+.job-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+}
+.job-card h2 { margin: 4px 0 6px; font-size: 1.15rem; }
+.job-meta { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 10px; }
+.job-block { margin-top: 10px; }
+.job-block strong { color: var(--accent); display: block; margin-bottom: 3px; font-size: 0.85rem; }
+.job-block p { margin: 0; font-size: 0.92rem; color: var(--text); white-space: pre-line; }
+.cat-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 4px; }
+.cat-tabs a {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+.cat-tabs a.active { color: var(--accent); border-color: var(--accent); }
+.job-source {
+    margin-top: 10px;
+    font-size: 0.85rem;
+}
+.job-source a { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+    <a class="logo" href="{{ url_for('home') }}">CORVEX NEWS</a>
+    <a href="{{ url_for('home') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الأخبار</a>
+</header>
+
+<main>
+    <div class="hero">
+        <h1>عروض الخدمة</h1>
+        <p>آخر العروض لي جابهم الروبوت من المواقع الرسمية، وترجمهم بالعربية.</p>
+    </div>
+
+    <div class="robot-banner">
+        <span class="robot-dot"></span>
+        {% if jobs_robot_status.running %}
+            الروبوت خدام دابا{% if jobs_robot_status.current_site %} — كيقلب فـ {{ jobs_robot_status.current_site }}{% endif %}...
+        {% else %}
+            آخر مرة جاب {{ jobs_robot_status.last_run_saved }} عرض جديد. كيتشيك كل {{ jobs_robot_interval }} ساعة.
+        {% endif %}
+    </div>
+
+    <div class="cat-tabs">
+        <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
+        {% for code, info in job_categories.items() %}
+            <a href="{{ url_for('jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
+        {% endfor %}
+    </div>
+
+    {% if offers %}
+        {% for offer in offers %}
+            <div class="job-card">
+                <span class="category">{{ offer.source_site }}</span>
+                <h2>{{ offer.title_ar }}</h2>
+                <div class="job-meta">
+                    {% if offer.company_ar %}{{ offer.company_ar }} &middot; {% endif %}
+                    آخر أجل: {{ offer.deadline or "غير محدد" }}
+                </div>
+
+                {% if offer.description_ar %}
+                <div class="job-block">
+                    <strong>الوصف</strong>
+                    <p>{{ offer.description_ar }}</p>
+                </div>
+                {% endif %}
+
+                {% if offer.conditions_ar %}
+                <div class="job-block">
+                    <strong>الشروط</strong>
+                    <p>{{ offer.conditions_ar }}</p>
+                </div>
+                {% endif %}
+
+                {% if offer.documents_ar %}
+                <div class="job-block">
+                    <strong>الوثائق المطلوبة</strong>
+                    <p>{{ offer.documents_ar }}</p>
+                </div>
+                {% endif %}
+
+                {% if offer.how_to_apply_ar %}
+                <div class="job-block">
+                    <strong>كيفاش تدير الترشيح</strong>
+                    <p>{{ offer.how_to_apply_ar }}</p>
+                </div>
+                {% endif %}
+
+                {% if offer.source_url %}
+                <div class="job-source">
+                    <a href="{{ offer.source_url }}" target="_blank" rel="noopener noreferrer">
+                        شوف العرض الأصلي &rarr;
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="no-news">
+            <h2><span class="robot-dot"></span> مازال ماكاين عروض</h2>
+            <p>الروبوت كيقلب على العروض. عاود جرب من بعد شوية.</p>
+        </div>
+    {% endif %}
+</main>
+
+<footer>
+    &copy; {{ 2026 }} Corvex News.
+</footer>
+
+</body>
+</html>
+"""
+
+# ============================================================
 # START DATABASE
 # ============================================================
 
 init_db()
+init_jobs_db()
 
 # ============================================================
 # START ROBOT SCHEDULER
@@ -1812,10 +2542,27 @@ scheduler.add_job(
     replace_existing=True
 )
 
+# ---- JOBS ROBOT: run once shortly after startup, then daily ----
+scheduler.add_job(
+    run_jobs_robot,
+    trigger="date",
+    run_date=datetime.now(),
+    id="initial_jobs_robot",
+    replace_existing=True
+)
+
+scheduler.add_job(
+    run_jobs_robot,
+    trigger="interval",
+    hours=JOBS_ROBOT_INTERVAL_HOURS,
+    id="jobs_robot",
+    replace_existing=True
+)
+
 scheduler.start()
 
 print("-> News Robot Scheduler Started")
-print(f"-> Groq API keys available: {len(GROQ_KEYS)}")
+print(f"-> Groq API keys — news: {len(NEWS_GROQ_KEYS)} | jobs: {len(JOB_GROQ_KEYS)}")
 
 # ============================================================
 # LOCAL DEVELOPMENT
