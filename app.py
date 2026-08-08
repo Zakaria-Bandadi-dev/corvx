@@ -1758,9 +1758,7 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
         <div class="content">{{ article.content }}</div>
 
         <div class="disclaimer">
-            This article was automatically generated and translated by our robot
-            from a real source cited below. It may contain inaccuracies; please
-            check the original source for verification.
+           please check the original source for verification.
         </div>
 
         {% if article.source_url %}
