@@ -1714,6 +1714,7 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
 <title>{{ article.title }} — Corvex News</title>
 <meta name="description" content="{{ seo_description(article.content) }}">
 <link rel="canonical" href="{{ canonical_url }}">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
 {% for code, url in alternate_urls.items() %}
 <link rel="alternate" hreflang="{{ code }}" href="{{ url }}">
 {% endfor %}
