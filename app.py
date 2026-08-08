@@ -2428,13 +2428,8 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
 
 <main>
     <div class="hero">
-        <h1>عروض الخدمة</h1>
+        <h1>عروض العمل</h1>
         
-    </div>
-
-    <div class="robot-banner">
-        <span class="robot-dot"></span>
-            آخر مرة جاب {{ jobs_robot_status.last_run_saved }} عرض جديد. كيتشيك كل {{ jobs_robot_interval }} ساعة.
     </div>
 
     <div class="cat-tabs">
