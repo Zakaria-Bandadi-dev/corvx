@@ -1480,7 +1480,22 @@ def home():
         }
     )
 
+@app.route("/ads.txt")
+def ads_txt():
+    if not ADSENSE_CLIENT:
+        return (
+            "AdSense publisher ID is not configured.",
+            503,
+            {"Content-Type": "text/plain; charset=utf-8"}
+        )
 
+    publisher_id = ADSENSE_CLIENT.replace("ca-", "").strip()
+
+    return (
+        f"google.com, {publisher_id}, DIRECT, f08c47fec0942fa0\n"
+    ), 200, {
+        "Content-Type": "text/plain; charset=utf-8"
+    }
 # ============================================================
 # ARTICLE DETAILS
 # ============================================================
