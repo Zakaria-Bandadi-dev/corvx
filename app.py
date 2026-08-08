@@ -2494,7 +2494,7 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
     {% else %}
         <div class="no-news">
             <h2><span class="robot-dot"></span> مازال ماكاين عروض</h2>
-            <p>الروبوت كيقلب على العروض. عاود جرب من بعد شوية.</p>
+            <p> عاود جرب من بعد شوية.</p>
         </div>
     {% endif %}
 </main>
