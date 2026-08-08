@@ -2429,16 +2429,12 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
 <main>
     <div class="hero">
         <h1>عروض الخدمة</h1>
-        <p>آخر العروض لي جابهم الروبوت من المواقع الرسمية، وترجمهم بالعربية.</p>
+        
     </div>
 
     <div class="robot-banner">
         <span class="robot-dot"></span>
-        {% if jobs_robot_status.running %}
-            الروبوت خدام دابا{% if jobs_robot_status.current_site %} — كيقلب فـ {{ jobs_robot_status.current_site }}{% endif %}...
-        {% else %}
             آخر مرة جاب {{ jobs_robot_status.last_run_saved }} عرض جديد. كيتشيك كل {{ jobs_robot_interval }} ساعة.
-        {% endif %}
     </div>
 
     <div class="cat-tabs">
