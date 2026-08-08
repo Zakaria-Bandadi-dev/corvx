@@ -1600,6 +1600,27 @@ def build_website_schema():
 # TRANSLATION
 # ============================================================
 
+def looks_like_lang(text, lang):
+    """Heuristic check: does this text actually look like it's written in
+    `lang`? Used to catch rows where the column is NOT empty but was
+    filled with the wrong language by the old silent-fallback bug."""
+    if not text:
+        return False
+
+    arabic_chars = len(re.findall(r"[\u0600-\u06FF]", text))
+    letters = len(re.findall(r"[^\W\d_]", text, flags=re.UNICODE))
+    if letters == 0:
+        return False
+    arabic_ratio = arabic_chars / letters
+
+    if lang == "ar":
+        return arabic_ratio > 0.4
+
+    # For latin-script targets (en/fr/es), the text is wrong if it's
+    # mostly Arabic script.
+    return arabic_ratio < 0.2
+
+
 def safe_translate(text, target_lang):
     """Last-resort translation using deep-translator (Google Translate
     backend, free, no API key). Only used when the Groq translation call
@@ -2001,12 +2022,15 @@ def home():
             fallback_title = row[3]
             fallback_content = row[4]
 
-            # Legacy/failed rows: the selected-language column is empty.
-            # Translate on the fly and cache it so we don't redo this
-            # on every future page view.
-            if lang != "en" and (not title or not content):
-                new_title = title or safe_translate(fallback_title, lang) or fallback_title
-                new_content = content or safe_translate(fallback_content, lang) or fallback_content
+            # Legacy/broken rows: the selected-language column is either
+            # empty OR was filled with the wrong language by the old
+            # silent-fallback bug. Detect both cases, retranslate, and
+            # cache the fix so we don't redo this on every page view.
+            if lang != "en" and (not looks_like_lang(title, lang) or not looks_like_lang(content, lang)):
+                new_title = fallback_title if not looks_like_lang(title, lang) else title
+                new_content = fallback_content if not looks_like_lang(content, lang) else content
+                new_title = safe_translate(new_title, lang) or new_title
+                new_content = safe_translate(new_content, lang) or new_content
                 cache_translation(article_id, lang, new_title, new_content)
                 title, content = new_title, new_content
 
@@ -2154,11 +2178,14 @@ def article_detail(article_id):
             fallback_title = row[3]
             fallback_content = row[4]
 
-            # Legacy/failed rows: the selected-language column is empty.
-            # Translate on the fly and cache it for next time.
-            if lang != "en" and (not title or not content):
-                new_title = title or safe_translate(fallback_title, lang) or fallback_title
-                new_content = content or safe_translate(fallback_content, lang) or fallback_content
+            # Legacy/broken rows: the selected-language column is either
+            # empty OR was filled with the wrong language by the old
+            # silent-fallback bug. Detect both cases and retranslate.
+            if lang != "en" and (not looks_like_lang(title, lang) or not looks_like_lang(content, lang)):
+                new_title = fallback_title if not looks_like_lang(title, lang) else title
+                new_content = fallback_content if not looks_like_lang(content, lang) else content
+                new_title = safe_translate(new_title, lang) or new_title
+                new_content = safe_translate(new_content, lang) or new_content
                 cache_translation(article_id, lang, new_title, new_content)
                 title, content = new_title, new_content
 
@@ -2522,6 +2549,65 @@ def manual_jobs_robot():
 # ============================================================
 # HEALTH CHECK
 # ============================================================
+
+@app.route("/fix-translations")
+def fix_translations():
+    """One-time (re-runnable) cleanup: scan every article and repair any
+    ar/fr/es column that is empty or contains the wrong language, using
+    title_en/content_en as the source of truth."""
+    fixed = 0
+    checked = 0
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, title_en, content_en, title_ar, content_ar, title_fr, content_fr, title_es, content_es FROM articles")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        for row in rows:
+            (article_id, title_en, content_en,
+             title_ar, content_ar, title_fr, content_fr, title_es, content_es) = row
+            checked += 1
+
+            updates = {}
+
+            for lang, title_val, content_val in (
+                ("ar", title_ar, content_ar),
+                ("fr", title_fr, content_fr),
+                ("es", title_es, content_es),
+            ):
+                bad_title = not looks_like_lang(title_val, lang)
+                bad_content = not looks_like_lang(content_val, lang)
+                if bad_title or bad_content:
+                    new_title = safe_translate(title_en, lang) or title_en if bad_title else title_val
+                    new_content = safe_translate(content_en, lang) or content_en if bad_content else content_val
+                    updates[lang] = (new_title, new_content)
+
+            if updates:
+                conn2 = get_db_connection()
+                cur2 = conn2.cursor()
+                set_parts = []
+                params = []
+                for lang, (t, c) in updates.items():
+                    set_parts.append(f"title_{lang} = %s")
+                    set_parts.append(f"content_{lang} = %s")
+                    params.extend([t, c])
+                params.append(article_id)
+                cur2.execute(
+                    f"UPDATE articles SET {', '.join(set_parts)} WHERE id = %s",
+                    params
+                )
+                conn2.commit()
+                cur2.close()
+                conn2.close()
+                fixed += 1
+
+        return jsonify({"checked": checked, "fixed": fixed})
+
+    except Exception as e:
+        return jsonify({"error": str(e), "checked": checked, "fixed": fixed}), 500
+
 
 @app.route("/health")
 def health():
