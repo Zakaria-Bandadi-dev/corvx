@@ -1610,6 +1610,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
 <title>Corvex News — {{ country_name }}</title>
 <meta name="description" content="{{ seo_description(country_name ~ ' latest news') }}">
 <link rel="canonical" href="{{ canonical_url }}">
