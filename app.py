@@ -2381,6 +2381,13 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
 <head>
 <meta charset="UTF-8">
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5HWZM8XR');</script>
+<!-- End Google Tag Manager -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="google-site-verification" content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
 <script async custom-element="amp-auto-ads"
@@ -2424,6 +2431,10 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <style>{{ base_css }}</style>
 </head>
 <body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 <amp-auto-ads type="adsense"
         data-ad-client="ca-pub-6569442856013984">
 </amp-auto-ads>
@@ -2502,6 +2513,13 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5HWZM8XR');</script>
+<!-- End Google Tag Manager -->
 <title>{{ article.seo_title or article.title }} — Corvex News</title>
 <meta name="description" content="{{ article.meta_description or seo_description(article.content) }}">
 <meta name="keywords" content="{{ article.primary_keyword }}{% if article.secondary_keywords %}, {{ article.secondary_keywords }}{% endif %}">
@@ -2542,7 +2560,10 @@ ARTICLE_TEMPLATE = """<!DOCTYPE html>
 <style>{{ base_css }}</style>
 </head>
 <body>
-
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 <header class="site-header">
     <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">CORVEX NEWS</a>
 </header>
@@ -2617,6 +2638,13 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5HWZM8XR');</script>
+<!-- End Google Tag Manager -->
 <title>عروض الخدمة — Corvex News</title>
 <meta name="description" content="آخر عروض الخدمة فالمغرب، الخليج، وأوروبا وكندا.">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
@@ -2674,7 +2702,10 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 <header class="site-header">
     <a class="logo notranslate" translate="no" href="{{ url_for('home') }}">CORVEX NEWS</a>
     <a href="{{ url_for('home') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الأخبار</a>
