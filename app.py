@@ -1938,6 +1938,8 @@ def robots_txt():
 @app.route("/sitemap.xml")
 def sitemap_xml():
     urls = []
+
+    # Home pages for each configured country/language.
     for country_code in COUNTRIES:
         for lang_code in LANGUAGES:
             urls.append(
@@ -1947,31 +1949,56 @@ def sitemap_xml():
                 )
             )
 
+    # Article URLs.
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, country, created_at FROM articles ORDER BY created_at DESC")
+
+        cur.execute("""
+            SELECT id, country, created_at
+            FROM articles
+            ORDER BY created_at DESC
+        """)
+
         rows = cur.fetchall()
         cur.close()
         conn.close()
 
         for article_id, country_code, created_at in rows:
             for lang_code in LANGUAGES:
-                urls.append(absolute_url(article_path(article_id, country_code, lang_code)))
+                urls.append(
+                    absolute_url(
+                        article_path(
+                            article_id,
+                            country_code,
+                            lang_code
+                        )
+                    )
+                )
 
     except Exception as e:
         print(f"!! Sitemap database error: {e}")
 
+    # Remove duplicates while preserving order.
     urls = list(dict.fromkeys(urls))
+
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="[http://www.sitemaps.org/schemas/sitemap/0.9](http://www.sitemaps.org/schemas/sitemap/0.9)">'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
     ]
-    for url in urls:
-        parts.append("<url><loc>" + url.replace("&", "&amp;") + "</loc></url>")
-    parts.append("</urlset>")
-    return "\n".join(parts), 200, {"Content-Type": "text/xml; charset=utf-8"}
 
+    for url in urls:
+        parts.append(
+            "<url><loc>" +
+            url.replace("&", "&amp;") +
+            "</loc></url>"
+        )
+
+    parts.append("</urlset>")
+
+    return "\n".join(parts), 200, {
+        "Content-Type": "text/xml; charset=utf-8"
+    }
 @app.route("/seo-status")
 def seo_status():
     try:
