@@ -2355,6 +2355,9 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script async custom-element="amp-auto-ads"
+        src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
+</script>
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
 <title>Corvex News — {{ country_name }}</title>
 <meta name="description" content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -2393,7 +2396,9 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <style>{{ base_css }}</style>
 </head>
 <body>
-
+<amp-auto-ads type="adsense"
+        data-ad-client="ca-pub-6569442856013984">
+</amp-auto-ads>
 <header class="site-header">
     <div class="logo notranslate" translate="no">CORVEX NEWS</div>
 
