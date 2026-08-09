@@ -2380,55 +2380,100 @@ footer {
 HOME_TEMPLATE = """<!DOCTYPE html>
 <html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
 <head>
-<meta charset="UTF-8">
-<!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-5HWZM8XR');</script>
-<!-- End Google Tag Manager -->
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="google-site-verification" content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
-<script async custom-element="amp-auto-ads"
-        src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
-</script>
-<link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-<title>Corvex News — {{ country_name }}</title>
-<meta name="description" content="{{ seo_description(country_name ~ ' latest news') }}">
-<link rel="canonical" href="{{ canonical_url }}">
-{% for code, url in absolute_home_urls.items() %}
-<link rel="alternate" hreflang="{{ code }}" href="{{ url }}">
-{% endfor %}
+    <meta charset="UTF-8">
 
-<meta property="og:site_name" content="Corvex News">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Corvex News — {{ country_name }}">
-<meta property="og:description" content="{{ seo_description(country_name ~ ' latest news') }}">
-<meta property="og:url" content="{{ canonical_url }}">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Corvex News — {{ country_name }}">
-<meta name="twitter:description" content="{{ seo_description(country_name ~ ' latest news') }}">
+    <!-- Google Tag Manager -->
+    <script>
+    (function(w,d,s,l,i){
+        w[l]=w[l]||[];
+        w[l].push({
+            'gtm.start': new Date().getTime(),
+            event:'gtm.js'
+        });
 
-{% if ga_id %}
-<script async src="[https://www.googletagmanager.com/gtag/js?id=](https://www.googletagmanager.com/gtag/js?id=){{ ga_id }}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', '{{ ga_id }}');
-</script>
-{% endif %}
+        var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),
+            dl=l!='dataLayer' ? '&l='+l : '';
 
-{% if adsense_client %}
-<script async src="[https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=](https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=){{ adsense_client }}"
- crossorigin="anonymous"></script>
-{% endif %}
-{% if website_schema %}
-<script type="application/ld+json">{{ website_schema | tojson }}</script>
-{% endif %}
+        j.async=true;
+        j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
 
-<style>{{ base_css }}</style>
+        f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-5HWZM8XR');
+    </script>
+    <!-- End Google Tag Manager -->
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta name="google-site-verification"
+          content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
+
+    <script async
+            custom-element="amp-auto-ads"
+            src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
+    </script>
+
+    <link rel="icon"
+          type="image/png"
+          href="{{ url_for('static', filename='logo.png') }}">
+
+    <title>Corvex News — {{ country_name }}</title>
+
+    <meta name="description"
+          content="{{ seo_description(country_name ~ ' latest news') }}">
+
+    <link rel="canonical"
+          href="{{ canonical_url }}">
+
+    {% for code, url in absolute_home_urls.items() %}
+        <link rel="alternate"
+              hreflang="{{ code }}"
+              href="{{ url }}">
+    {% endfor %}
+
+    <meta property="og:site_name"
+          content="Corvex News">
+
+    <meta property="og:type"
+          content="website">
+
+    <meta property="og:title"
+          content="Corvex News — {{ country_name }}">
+
+    <meta property="og:description"
+          content="{{ seo_description(country_name ~ ' latest news') }}">
+
+    <meta property="og:url"
+          content="{{ canonical_url }}">
+
+    <meta name="twitter:card"
+          content="summary">
+
+    <meta name="twitter:title"
+          content="Corvex News — {{ country_name }}">
+
+    <meta name="twitter:description"
+          content="{{ seo_description(country_name ~ ' latest news') }}">
+
+    {% if adsense_client %}
+        <!-- Google AdSense -->
+        <script async
+                src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+                crossorigin="anonymous">
+        </script>
+    {% endif %}
+
+    {% if website_schema %}
+        <!-- Structured Data -->
+        <script type="application/ld+json">
+            {{ website_schema | tojson }}
+        </script>
+    {% endif %}
+
+    <style>
+        {{ base_css }}
+    </style>
+
 </head>
 <body>
 <!-- Google Tag Manager (noscript) -->
