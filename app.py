@@ -2382,6 +2382,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="google-site-verification" content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
 <script async custom-element="amp-auto-ads"
         src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
 </script>
