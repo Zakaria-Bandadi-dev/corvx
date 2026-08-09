@@ -2361,11 +2361,13 @@ def sitemap_xml():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
         cur.execute("""
             SELECT id, country, created_at
             FROM articles
             ORDER BY created_at DESC
         """)
+
         rows = cur.fetchall()
         cur.close()
         conn.close()
@@ -2374,9 +2376,14 @@ def sitemap_xml():
             for lang_code in LANGUAGES:
                 urls.append(
                     absolute_url(
-                        article_path(article_id, country_code, lang_code)
+                        article_path(
+                            article_id,
+                            country_code,
+                            lang_code
+                        )
                     )
                 )
+
     except Exception as e:
         print(f"!! Sitemap database error: {e}")
 
@@ -2390,13 +2397,15 @@ def sitemap_xml():
 
     for url in urls:
         parts.append(
-            "<url><loc>" + url.replace("&", "&amp;") + "</loc></url>"
+            "<url><loc>" +
+            url.replace("&", "&amp;") +
+            "</loc></url>"
         )
 
     parts.append("</urlset>")
 
     return "\n".join(parts), 200, {
-        "Content-Type": "application/xml; charset=utf-8"
+        "Content-Type": "text/xml; charset=utf-8"
     }
 
 
