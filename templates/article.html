@@ -1,118 +1,597 @@
 <!DOCTYPE html>
-<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
+<html lang="{{ current_language }}"
+      dir="{% if current_language == 'ar' %}rtl{% else %}ltr{% endif %}">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-5HWZM8XR');</script>
-<!-- End Google Tag Manager -->
-<title>{{ article.seo_title or article.title }} — Corvx News</title>
-<meta name="description" content="{{ article.meta_description or seo_description(article.content) }}">
-<meta name="keywords" content="{{ article.primary_keyword }}{% if article.secondary_keywords %}, {{ article.secondary_keywords }}{% endif %}">
-<link rel="canonical" href="{{ canonical_url }}">
-<link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-{% for code, url in alternate_urls.items() %}
-<link rel="alternate" hreflang="{{ code }}" href="{{ url }}">
-{% endfor %}
 
-<meta property="og:site_name" content="Corvx News">
-<meta property="og:type" content="article">
-<meta property="og:title" content="{{ article.seo_title or article.title }}">
-<meta property="og:description" content="{{ article.meta_description or seo_description(article.content) }}">
-<meta property="og:url" content="{{ canonical_url }}">
-{% if article.image %}<meta property="og:image" content="{{ article.image }}">{% endif %}
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="{{ article.seo_title or article.title }}">
-<meta name="twitter:description" content="{{ article.meta_description or seo_description(article.content) }}">
+    <!-- Google Tag Manager -->
+    <script>
+    (function(w,d,s,l,i){
+        w[l]=w[l]||[];
+        w[l].push({
+            'gtm.start': new Date().getTime(),
+            event:'gtm.js'
+        });
 
-{% if ga_id %}
-<script async src="[https://www.googletagmanager.com/gtag/js?id=](https://www.googletagmanager.com/gtag/js?id=){{ ga_id }}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', '{{ ga_id }}');
-</script>
-{% endif %}
+        var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),
+            dl=l!='dataLayer' ? '&l='+l : '';
 
-{% if adsense_client %}
-<script async src="[https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=](https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=){{ adsense_client }}"
- crossorigin="anonymous"></script>
-{% endif %}
-{% if article.schema %}
-<script type="application/ld+json">{{ article.schema | tojson }}</script>
-{% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        j.async=true;
+        j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+
+        f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-5HWZM8XR');
+    </script>
+    <!-- End Google Tag Manager -->
+
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+
+    <meta name="google-site-verification"
+          content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A">
+
+
+    <script async
+            custom-element="amp-auto-ads"
+            src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
+    </script>
+
+
+    <!-- =========================
+         FAVICON
+    ========================== -->
+
+    <link rel="icon"
+          type="image/png"
+          href="{{ url_for('static', filename='logo.png') }}">
+
+
+    <!-- =========================
+         TITLE
+    ========================== -->
+
+    <title>
+
+        {% if current_language == 'ar' %}
+            {{ article.title }} — Corvx
+
+        {% elif current_language == 'fr' %}
+            {{ article.title }} — Corvx
+
+        {% elif current_language == 'es' %}
+            {{ article.title }} — Corvx
+
+        {% else %}
+            {{ article.title }} — Corvx
+
+        {% endif %}
+
+    </title>
+
+
+    <!-- =========================
+         META DESCRIPTION
+    ========================== -->
+
+    <meta name="description"
+          content="{{ article.content[:160] }}">
+
+
+    <!-- =========================
+         CANONICAL
+    ========================== -->
+
+    <link rel="canonical"
+          href="{{ canonical_url }}">
+
+
+    <!-- =========================
+         HREFLANG
+    ========================== -->
+
+    {% for code, url in absolute_article_urls.items() %}
+
+        <link rel="alternate"
+              hreflang="{{ code }}"
+              href="{{ url }}">
+
+    {% endfor %}
+
+
+    <!-- =========================
+         OPEN GRAPH
+    ========================== -->
+
+    <meta property="og:site_name"
+          content="Corvx News">
+
+
+    <meta property="og:type"
+          content="article">
+
+
+    <meta property="og:title"
+          content="{{ article.title }}">
+
+
+    <meta property="og:description"
+          content="{{ article.content[:160] }}">
+
+
+    <meta property="og:url"
+          content="{{ canonical_url }}">
+
+
+    {% if article.image %}
+
+        <meta property="og:image"
+              content="{{ article.image }}">
+
+    {% endif %}
+
+
+    <!-- =========================
+         TWITTER
+    ========================== -->
+
+    <meta name="twitter:card"
+          content="summary_large_image">
+
+
+    <meta name="twitter:title"
+          content="{{ article.title }}">
+
+
+    <meta name="twitter:description"
+          content="{{ article.content[:160] }}">
+
+
+    {% if article.image %}
+
+        <meta name="twitter:image"
+              content="{{ article.image }}">
+
+    {% endif %}
+
+
+    <!-- =========================
+         GOOGLE ANALYTICS
+    ========================== -->
+
+    {% if ga_id %}
+
+        <script async
+                src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}">
+        </script>
+
+        <script>
+            window.dataLayer = window.dataLayer || [];
+
+            function gtag(){
+                dataLayer.push(arguments);
+            }
+
+            gtag('js', new Date());
+
+            gtag('config', '{{ ga_id }}');
+        </script>
+
+    {% endif %}
+
+
+    <!-- =========================
+         GOOGLE ADSENSE
+    ========================== -->
+
+    {% if adsense_client %}
+
+        <script async
+                src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+                crossorigin="anonymous">
+        </script>
+
+    {% endif %}
+
+
+    <!-- =========================
+         ARTICLE SCHEMA
+    ========================== -->
+
+    {% if article.schema %}
+
+        <script type="application/ld+json">
+            {{ article.schema | tojson }}
+        </script>
+
+    {% endif %}
+
+
+    <!-- =========================
+         CSS
+    ========================== -->
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
 </head>
+
+
 <body>
-<!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
-<header class="site-header">
-    <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">Corvx NEWS</a>
-</header>
 
-<main>
-    <div class="article-header">
 
-        <a class="back" href="{{ url_for('home', country=current_country, lang=current_language) }}">&larr; Back to news</a>
+    <!-- =========================
+         CONTROLS
+    ========================== -->
 
-        {% if article.image %}
-            <img src="{{ article.image }}" alt="{{ article.title }}">
-        {% endif %}
+    <div class="controls">
 
-        <span class="category">{{ article.category or "News" }}</span>
+        <!-- JOBS -->
 
-        <h1>{{ article.title }}</h1>
+        <a href="{{ url_for('jobs_page') }}"
+           style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">
 
-        <div class="content">{{ article.content }}</div>
+            {% if current_language == 'ar' %}
+                الوظائف
 
-        {% if article.related %}
-        <section class="faq">
-            <h2>Related News</h2>
-            <ul>
-            {% for related in article.related %}
-                <li><a href="{{ url_for('article_detail', article_id=related.id, country=current_country, lang=current_language) }}">{{ related.title }}</a></li>
-            {% endfor %}
-            </ul>
-        </section>
-        {% endif %}
+            {% elif current_language == 'fr' %}
+                Emplois
 
-        {% if article.faq %}
-        <section class="faq">
-            <h2>Frequently Asked Questions</h2>
-            {% for item in article.faq %}
-                <h3>{{ item.question }}</h3>
-                <p>{{ item.answer }}</p>
-            {% endfor %}
-        </section>
-        {% endif %}
+            {% elif current_language == 'es' %}
+                Empleos
 
-        <div class="disclaimer">
-           please check the original source for verification.
-        </div>
+            {% else %}
+                Jobs
+            {% endif %}
 
-        {% if article.source_url %}
-            <div class="source">
-                <strong>Source:</strong>
-                {% if article.source_name %}{{ article.source_name }}{% endif %}
-                <br><br>
-                <a href="{{ article.source_url }}" target="_blank" rel="noopener noreferrer">
-                    View original source &rarr;
-                </a>
-            </div>
-        {% endif %}
+        </a>
+
+
+        <!-- AI TOOLS -->
+
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}"
+           style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">
+
+            {% if current_language == 'ar' %}
+                أدوات الذكاء الاصطناعي
+
+            {% elif current_language == 'fr' %}
+                Outils IA
+
+            {% elif current_language == 'es' %}
+                Herramientas de IA
+
+            {% else %}
+                AI Tools
+            {% endif %}
+
+        </a>
+
+
+        <!-- LANGUAGE -->
+
+        <form method="get">
+
+            <input type="hidden"
+                   name="country"
+                   value="{{ current_country }}">
+
+            <select name="lang"
+                    onchange="this.form.submit()">
+
+                {% for code, name in languages.items() %}
+
+                    <option value="{{ code }}"
+                            {% if code == current_language %}selected{% endif %}>
+                        {{ name }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </form>
+
+
+        <!-- COUNTRY -->
+
+        <form method="get">
+
+            <input type="hidden"
+                   name="lang"
+                   value="{{ current_language }}">
+
+            <select name="country"
+                    onchange="this.form.submit()">
+
+                {% for code, info in countries.items() %}
+
+                    <option value="{{ code }}"
+                            {% if code == current_country %}selected{% endif %}>
+                        {{ info.native }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </form>
 
     </div>
-</main>
 
-<footer>
-    &copy; {{ 2026 }} Corvx News.
-</footer>
+
+    <!-- =========================
+         ARTICLE CONTAINER
+    ========================== -->
+
+    <main class="article-page">
+
+
+        <!-- BACK -->
+
+        <a class="back"
+           href="{{ url_for('home', country=current_country, lang=current_language) }}">
+
+            {% if current_language == 'ar' %}
+                &larr; العودة إلى الأخبار
+
+            {% elif current_language == 'fr' %}
+                &larr; Retour aux actualités
+
+            {% elif current_language == 'es' %}
+                &larr; Volver a las noticias
+
+            {% else %}
+                &larr; Back to news
+            {% endif %}
+
+        </a>
+
+
+        <!-- IMAGE -->
+
+        {% if article.image %}
+
+            <img src="{{ article.image }}"
+                 alt="{{ article.title }}">
+
+        {% endif %}
+
+
+        <!-- CATEGORY -->
+
+        <span class="category">
+
+            {% if article.category %}
+
+                {{ article.category }}
+
+            {% else %}
+
+                {% if current_language == 'ar' %}
+                    أخبار
+
+                {% elif current_language == 'fr' %}
+                    Actualités
+
+                {% elif current_language == 'es' %}
+                    Noticias
+
+                {% else %}
+                    News
+                {% endif %}
+
+            {% endif %}
+
+        </span>
+
+
+        <!-- TITLE -->
+
+        <h1>
+            {{ article.title }}
+        </h1>
+
+
+        <!-- CONTENT -->
+
+        <div class="content">
+            {{ article.content }}
+        </div>
+
+
+        <!-- =========================
+             RELATED NEWS
+        ========================== -->
+
+        {% if article.related %}
+
+            <section class="faq">
+
+                <h2>
+
+                    {% if current_language == 'ar' %}
+                        أخبار ذات صلة
+
+                    {% elif current_language == 'fr' %}
+                        Actualités similaires
+
+                    {% elif current_language == 'es' %}
+                        Noticias relacionadas
+
+                    {% else %}
+                        Related News
+                    {% endif %}
+
+                </h2>
+
+
+                <ul>
+
+                {% for related in article.related %}
+
+                    <li>
+
+                        <a href="{{ url_for(
+                            'article_detail',
+                            article_id=related.id,
+                            country=current_country,
+                            lang=current_language
+                        ) }}">
+
+                            {{ related.title }}
+
+                        </a>
+
+                    </li>
+
+                {% endfor %}
+
+                </ul>
+
+            </section>
+
+        {% endif %}
+
+
+        <!-- =========================
+             FAQ
+        ========================== -->
+
+        {% if article.faq %}
+
+            <section class="faq">
+
+                <h2>
+
+                    {% if current_language == 'ar' %}
+                        الأسئلة الشائعة
+
+                    {% elif current_language == 'fr' %}
+                        Questions fréquemment posées
+
+                    {% elif current_language == 'es' %}
+                        Preguntas frecuentes
+
+                    {% else %}
+                        Frequently Asked Questions
+                    {% endif %}
+
+                </h2>
+
+
+                {% for item in article.faq %}
+
+                    <h3>
+                        {{ item.question }}
+                    </h3>
+
+                    <p>
+                        {{ item.answer }}
+                    </p>
+
+                {% endfor %}
+
+            </section>
+
+        {% endif %}
+
+
+        <!-- =========================
+             DISCLAIMER
+        ========================== -->
+
+        <div class="disclaimer">
+
+            {% if current_language == 'ar' %}
+
+                يرجى التحقق من المصدر الأصلي للتأكد من صحة المعلومات.
+
+            {% elif current_language == 'fr' %}
+
+                Veuillez consulter la source originale pour vérifier les informations.
+
+            {% elif current_language == 'es' %}
+
+                Consulta la fuente original para verificar la información.
+
+            {% else %}
+
+                Please check the original source for verification.
+
+            {% endif %}
+
+        </div>
+
+
+        <!-- =========================
+             SOURCE
+        ========================== -->
+
+        {% if article.source_url %}
+
+            <div class="source">
+
+                <strong>
+
+                    {% if current_language == 'ar' %}
+                        المصدر:
+
+                    {% elif current_language == 'fr' %}
+                        Source :
+
+                    {% elif current_language == 'es' %}
+                        Fuente:
+
+                    {% else %}
+                        Source:
+                    {% endif %}
+
+                </strong>
+
+
+                {% if article.source_name %}
+                    {{ article.source_name }}
+                {% endif %}
+
+
+                <br><br>
+
+
+                <a href="{{ article.source_url }}"
+                   target="_blank"
+                   rel="noopener noreferrer">
+
+                    {% if current_language == 'ar' %}
+
+                        عرض المصدر الأصلي &rarr;
+
+                    {% elif current_language == 'fr' %}
+
+                        Voir la source originale &rarr;
+
+                    {% elif current_language == 'es' %}
+
+                        Ver la fuente original &rarr;
+
+                    {% else %}
+
+                        View original source &rarr;
+
+                    {% endif %}
+
+                </a>
+
+            </div>
+
+        {% endif %}
+
+
+    </main>
+
+
 </body>
+
 </html>
