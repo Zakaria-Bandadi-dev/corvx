@@ -17,10 +17,12 @@ jobs_robot_status = {
 }
 
 def search_site_for_jobs(site_name, site_url):
-    user_prompt = f"""قلب على آخر عروض الخدمة الجداد فهاد الموقع: {site_name} ({site_url})
+    user_prompt = f"""
+        Search for the latest new job offers on this website: {site_name} ({site_url})
+        You must visit the website (visit_website) and/or perform a search (web_search) to find
+        real job offers that are currently available, not old listings or fabricated offers.
+        """
 
-خاصك تدخل للموقع (visit_website) و/أو تدير بحث (web_search) باش تلقى
-العروض الحقيقية الموجودة دابا، ماشي عروض قديمة ولا مختلقة."""
 
     raw = generate_with_groq_jobs(user_prompt)
     offers = _extract_jobs_json(raw)
