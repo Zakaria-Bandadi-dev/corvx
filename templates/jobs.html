@@ -22,42 +22,8 @@
 <script async src="[https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=](https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=){{ adsense_client }}"
  crossorigin="anonymous"></script>
 {% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-<style>
-{{ base_css }}
-.job-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 20px;
-    margin-bottom: 16px;
-}
-.job-card h2 { margin: 4px 0 6px; font-size: 1.15rem; }
-.job-meta { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 10px; }
-.job-block { margin-top: 10px; }
-.job-block strong { color: var(--accent); display: block; margin-bottom: 3px; font-size: 0.85rem; }
-.job-block p { margin: 0; font-size: 0.92rem; color: var(--text); white-space: pre-line; }
-.cat-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 4px; }
-.cat-tabs a {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    padding: 7px 14px;
-    border-radius: 999px;
-    font-size: 0.85rem;
-    color: var(--text-dim);
-}
-.cat-tabs a.active { color: var(--accent); border-color: var(--accent); }
-.job-source {
-    margin-top: 10px;
-    font-size: 0.85rem;
-}
-.job-source a { color: var(--accent); font-weight: 600; }
-
-@media (max-width: 768px) {
-    .job-card { padding: 14px 16px; }
-    .cat-tabs { gap: 6px; }
-    .cat-tabs a { padding: 6px 11px; font-size: 0.8rem; }
-}
 </style>
 </head>
 <body>
