@@ -1670,23 +1670,29 @@ def home():
     title_column = f"title_{lang}"
     content_column = f"content_{lang}"
     articles = []
+    ai_tools_articles = []
 
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # ========================================================
+        # MAIN NEWS
+        # Country articles + Global articles for everyone.
+        # Global articles are not restricted by the visitor country.
+        # ========================================================
         query = f"""
             SELECT
                 id, {title_column}, {content_column}, title_en, content_en,
                 image_url, category, source_name, created_at
             FROM articles
             WHERE country = %s
+               OR LOWER(COALESCE(region, '')) = 'global'
             ORDER BY created_at DESC
             LIMIT 30
         """
         cur.execute(query, (country,))
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
 
         for row in rows:
             article_id = row[0]
@@ -1712,6 +1718,52 @@ def home():
                 "source": row[7],
                 "created_at": row[8]
             })
+
+        # ========================================================
+        # AI TOOLS SECTION
+        # Only articles whose category is Artificial Intelligence.
+        # Global AI articles are therefore visible to everyone here.
+        # ========================================================
+        ai_query = f"""
+            SELECT
+                id, {title_column}, {content_column}, title_en, content_en,
+                image_url, category, source_name, created_at
+            FROM articles
+            WHERE LOWER(COALESCE(category, '')) = 'artificial intelligence'
+            ORDER BY created_at DESC
+            LIMIT 10
+        """
+        cur.execute(ai_query)
+        ai_rows = cur.fetchall()
+
+        for row in ai_rows:
+            article_id = row[0]
+            title = row[1]
+            content = row[2]
+            fallback_title = row[3]
+            fallback_content = row[4]
+
+            if lang != "en" and (not looks_like_lang(title, lang) or not looks_like_lang(content, lang)):
+                new_title = fallback_title if not looks_like_lang(title, lang) else title
+                new_content = fallback_content if not looks_like_lang(content, lang) else content
+                new_title = safe_translate(new_title, lang) or new_title
+                new_content = safe_translate(new_content, lang) or new_content
+                cache_translation(article_id, lang, new_title, new_content)
+                title, content = new_title, new_content
+
+            ai_tools_articles.append({
+                "id": article_id,
+                "title": title,
+                "content": content or "",
+                "image": row[5],
+                "category": row[6],
+                "source": row[7],
+                "created_at": row[8]
+            })
+
+        cur.close()
+        conn.close()
+
     except Exception as e:
         print(f"!! Home database error: {e}")
 
@@ -1719,6 +1771,7 @@ def home():
         HOME_TEMPLATE,
         base_css=BASE_CSS,
         articles=articles,
+        ai_tools_articles=ai_tools_articles,
         countries=COUNTRIES,
         languages=LANGUAGES,
         current_country=country,
@@ -2537,6 +2590,33 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <h2><span class="robot-dot"></span> No news yet</h2>
             <p>Collecting the latest news for {{ country_name }}. Check back in a few minutes.</p>
         </div>
+    {% endif %}
+
+    {% if ai_tools_articles %}
+        <section class="ai-tools-section" style="margin-top: 40px;">
+            <div class="hero">
+                <h2>AI Tools</h2>
+                <p>Latest artificial intelligence tools and updates.</p>
+            </div>
+
+            <div class="grid">
+            {% for article in ai_tools_articles %}
+                <article class="card">
+                    {% if article.image %}
+                        <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
+                    {% endif %}
+                    <div class="card-content">
+                        <span class="category">{{ article.category or "Artificial Intelligence" }}</span>
+                        <h2>{{ article.title }}</h2>
+                        <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
+                        <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
+                            Read article &rarr;
+                        </a>
+                    </div>
+                </article>
+            {% endfor %}
+            </div>
+        </section>
     {% endif %}
 
 </main>
