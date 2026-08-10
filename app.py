@@ -336,7 +336,7 @@ def absolute_url(path="/"):
 
 def seo_description(text, max_length=160):
     if not text:
-        return "Corvex News — Latest international news and updates."
+        return "Corvx News — Latest international news and updates."
     clean = " ".join(str(text).split())
     if len(clean) <= max_length:
         return clean
@@ -1303,8 +1303,8 @@ def build_schema(article_id, country, lang, article, faq):
             "description": article.get("meta_description") or seo_description(article.get("content", "")),
             "image": [article.get("image", "")],
             "datePublished": str(article.get("created_at", "")),
-            "author": {"@type": "Organization", "name": "Corvex News"},
-            "publisher": {"@type": "Organization", "name": "Corvex News"},
+            "author": {"@type": "Organization", "name": "Corvx News"},
+            "publisher": {"@type": "Organization", "name": "Corvx News"},
         }
     ]
     if faq:
@@ -1326,14 +1326,14 @@ def build_website_schema():
             {
                 "@type": "Organization",
                 "@id": home_url + "#organization",
-                "name": "Corvex News",
+                "name": "Corvx News",
                 "url": home_url,
             },
             {
                 "@type": "WebSite",
                 "@id": home_url + "#website",
                 "url": home_url,
-                "name": "Corvex News",
+                "name": "Corvx News",
                 "publisher": {"@id": home_url + "#organization"},
             },
         ],
@@ -2516,8 +2516,8 @@ AI_TOOLS_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-    <title>AI Tools — Corvex News</title>
-    <meta name="description" content="Artificial intelligence tools and AI agent news on Corvex News.">
+    <title>AI Tools — Corvx News</title>
+    <meta name="description" content="Artificial intelligence tools and AI agent news on Corvx News.">
     <link rel="canonical" href="{{ canonical_url }}">
     <style>
         {{ base_css }}
@@ -2525,7 +2525,7 @@ AI_TOOLS_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 <header class="site-header">
-    <div class="logo notranslate" translate="no">CORVEX NEWS</div>
+    <div class="logo notranslate" translate="no">Corvx NEWS</div>
 
     <div class="controls">
         <a href="{{ url_for('home', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">Home</a>
@@ -2585,7 +2585,7 @@ AI_TOOLS_TEMPLATE = """<!DOCTYPE html>
 </main>
 
 <footer>
-    &copy; {{ current_language|upper }} Corvex News
+    &copy; {{ current_language|upper }} Corvx News
 </footer>
 </body>
 </html>"""
@@ -2630,7 +2630,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
           type="image/png"
           href="{{ url_for('static', filename='logo.png') }}">
 
-    <title>Corvex News — {{ country_name }}</title>
+    <title>Corvx News — {{ country_name }}</title>
 
     <meta name="description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -2645,13 +2645,13 @@ HOME_TEMPLATE = """<!DOCTYPE html>
     {% endfor %}
 
     <meta property="og:site_name"
-          content="Corvex News">
+          content="Corvx News">
 
     <meta property="og:type"
           content="website">
 
     <meta property="og:title"
-          content="Corvex News — {{ country_name }}">
+          content="Corvx News — {{ country_name }}">
 
     <meta property="og:description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -2663,7 +2663,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
           content="summary">
 
     <meta name="twitter:title"
-          content="Corvex News — {{ country_name }}">
+          content="Corvx News — {{ country_name }}">
 
     <meta name="twitter:description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -2697,7 +2697,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         data-ad-client="ca-pub-6569442856013984">
 </amp-auto-ads>
 <header class="site-header">
-    <div class="logo notranslate" translate="no">CORVEX NEWS</div>
+    <div class="logo notranslate" translate="no">Corvx NEWS</div>
 
     <div class="controls">
         <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
@@ -2783,7 +2783,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvex News.
+    &copy; {{ 2026 }} Corvx News.
 </footer>
 
 </body>
@@ -2806,7 +2806,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-5HWZM8XR');</script>
 <!-- End Google Tag Manager -->
-<title>{{ article.seo_title or article.title }} — Corvex News</title>
+<title>{{ article.seo_title or article.title }} — Corvx News</title>
 <meta name="description" content="{{ article.meta_description or seo_description(article.content) }}">
 <meta name="keywords" content="{{ article.primary_keyword }}{% if article.secondary_keywords %}, {{ article.secondary_keywords }}{% endif %}">
 <link rel="canonical" href="{{ canonical_url }}">
@@ -2815,7 +2815,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <link rel="alternate" hreflang="{{ code }}" href="{{ url }}">
 {% endfor %}
 
-<meta property="og:site_name" content="Corvex News">
+<meta property="og:site_name" content="Corvx News">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{{ article.seo_title or article.title }}">
 <meta property="og:description" content="{{ article.meta_description or seo_description(article.content) }}">
@@ -2851,7 +2851,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
 <header class="site-header">
-    <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">CORVEX NEWS</a>
+    <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">Corvx NEWS</a>
 </header>
 
 <main>
@@ -2909,7 +2909,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvex News.
+    &copy; {{ 2026 }} Corvx News.
 </footer>
 </body>
 </html>
@@ -2925,7 +2925,7 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>عروض الخدمة — Corvex News</title>
+<title>عروض الخدمة — Corvx News</title>
 <meta name="description" content="آخر عروض الخدمة فالمغرب، الخليج، وأوروبا وكندا.">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
 
@@ -2987,7 +2987,7 @@ JOBS_TEMPLATE = """<!DOCTYPE html>
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
 <header class="site-header">
-    <a class="logo notranslate" translate="no" href="{{ url_for('home') }}">CORVEX NEWS</a>
+    <a class="logo notranslate" translate="no" href="{{ url_for('home') }}">Corvx NEWS</a>
     <a href="{{ url_for('home') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الأخبار</a>
 </header>
 
@@ -3060,7 +3060,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvex News.
+    &copy; {{ 2026 }} Corvx News.
 </footer>
 
 </body>
