@@ -1,4 +1,3 @@
-```python
 from groq import Groq
 
 from config.settings import (
@@ -204,4 +203,3 @@ def generate_with_groq_compound(
     print("!! ALL COMPOUND GROQ KEYS FAILED")
 
     return None
-```
