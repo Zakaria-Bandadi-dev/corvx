@@ -1,4 +1,4 @@
-```python
+
 import json
 import re
 
@@ -346,4 +346,4 @@ Improve only what is necessary.
     )
 
     return data
-```
+
