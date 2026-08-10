@@ -10,14 +10,77 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+
+{# =========================================================
+   UI STRINGS — interface "chrome" text, NOT article content.
+   Translated by current_language. Same keys as home.html;
+   add a 5th language by adding one more key to this dict.
+   ========================================================= #}
+{% set ui_strings = {
+    'en': {
+        'home_link':        'Home',
+        'jobs_link':        'Jobs',
+        'ai_tools_link':    'AI Tools',
+        'hero_title':       'AI Tools',
+        'hero_sub':         'Artificial intelligence tools, agents and the latest AI updates.',
+        'read_more':        'Read article →',
+        'ai_category':      'Artificial Intelligence',
+        'no_ai_title':      'No AI tools yet',
+        'no_ai_sub':        'There are no artificial intelligence articles available yet.',
+        'footer':           '© 2026 Corvx News.'
+    },
+    'ar': {
+        'home_link':        'الرئيسية',
+        'jobs_link':        'الخدمة',
+        'ai_tools_link':    'أدوات الذكاء الاصطناعي',
+        'hero_title':       'أدوات الذكاء الاصطناعي',
+        'hero_sub':         'أدوات وعملاء وآخر تحديثات الذكاء الاصطناعي.',
+        'read_more':        'اقرأ المقال ←',
+        'ai_category':      'ذكاء اصطناعي',
+        'no_ai_title':      'مازال ماكاين أدوات ذكاء اصطناعي',
+        'no_ai_sub':        'ماكاينش دابا مقالات ديال الذكاء الاصطناعي.',
+        'footer':           '© 2026 كورفكس نيوز.'
+    },
+    'fr': {
+        'home_link':        'Accueil',
+        'jobs_link':        'Emplois',
+        'ai_tools_link':    'Outils IA',
+        'hero_title':       'Outils IA',
+        'hero_sub':         'Outils, agents et dernières mises à jour en intelligence artificielle.',
+        'read_more':        'Lire l\'article →',
+        'ai_category':      'Intelligence artificielle',
+        'no_ai_title':      'Aucun outil IA pour le moment',
+        'no_ai_sub':        'Aucun article sur l\'intelligence artificielle n\'est encore disponible.',
+        'footer':           '© 2026 Corvx News.'
+    },
+    'es': {
+        'home_link':        'Inicio',
+        'jobs_link':        'Empleos',
+        'ai_tools_link':    'Herramientas IA',
+        'hero_title':       'Herramientas IA',
+        'hero_sub':         'Herramientas, agentes y las últimas novedades en inteligencia artificial.',
+        'read_more':        'Leer artículo →',
+        'ai_category':      'Inteligencia artificial',
+        'no_ai_title':      'Todavía no hay herramientas IA',
+        'no_ai_sub':        'Aún no hay artículos de inteligencia artificial disponibles.',
+        'footer':           '© 2026 Corvx News.'
+    }
+} %}
+{% set t = ui_strings.get(current_language, ui_strings['en']) %}
+
 <header class="site-header">
     <div class="logo notranslate" translate="no">Corvx NEWS</div>
 
-    <div class="controls">
-        <a href="{{ url_for('home', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">Home</a>
-        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
-        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">AI Tools</a>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle-input" hidden>
+    <label for="nav-toggle" class="nav-toggle-btn" aria-label="Menu">
+        <span></span><span></span><span></span>
+    </label>
+    <label for="nav-toggle" class="nav-overlay" aria-hidden="true"></label>
 
+    <div class="controls">
+        <a href="{{ url_for('home', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">{{ t.home_link }}</a>
+        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">{{ t.jobs_link }}</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">{{ t.ai_tools_link }}</a>
         <form method="get" action="{{ url_for('ai_tools_page') }}">
             <input type="hidden" name="country" value="{{ current_country }}">
             <select name="lang" onchange="this.form.submit()">
@@ -26,7 +89,6 @@
                 {% endfor %}
             </select>
         </form>
-
         <form method="get" action="{{ url_for('ai_tools_page') }}">
             <input type="hidden" name="lang" value="{{ current_language }}">
             <select name="country" onchange="this.form.submit()">
@@ -37,13 +99,11 @@
         </form>
     </div>
 </header>
-
 <main>
     <div class="hero">
-        <h1>AI Tools</h1>
-        <p>Artificial intelligence tools, agents and the latest AI updates.</p>
+        <h1>{{ t.hero_title }}</h1>
+        <p>{{ t.hero_sub }}</p>
     </div>
-
     {% if ai_tools_articles %}
         <div class="grid">
         {% for article in ai_tools_articles %}
@@ -52,11 +112,11 @@
                     <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
                 {% endif %}
                 <div class="card-content">
-                    <span class="category">{{ article.category or "Artificial Intelligence" }}</span>
+                    <span class="category">{{ article.category or t.ai_category }}</span>
                     <h2>{{ article.title }}</h2>
                     <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
                     <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
-                        Read article &rarr;
+                        {{ t.read_more }}
                     </a>
                 </div>
             </article>
@@ -64,14 +124,13 @@
         </div>
     {% else %}
         <div class="no-news">
-            <h2>No AI tools yet</h2>
-            <p>There are no artificial intelligence articles available yet.</p>
+            <h2>{{ t.no_ai_title }}</h2>
+            <p>{{ t.no_ai_sub }}</p>
         </div>
     {% endif %}
 </main>
-
 <footer>
-    &copy; {{ current_language|upper }} Corvx News
+    {{ t.footer }}
 </footer>
 </body>
 </html>
