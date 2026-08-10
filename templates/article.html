@@ -92,13 +92,11 @@
          HREFLANG
     ========================== -->
 
-    {% for code, url in absolute_article_urls.items() %}
-
-        <link rel="alternate"
-              hreflang="{{ code }}"
-              href="{{ url }}">
-
-    {% endfor %}
+    {% for code, url in absolute_home_urls.items() %}
+          <link rel="alternate"
+          hreflang="{{ code }}"
+          href="{{ url }}">
+      {% endfor %}
 
 
     <!-- =========================
