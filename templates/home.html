@@ -1,195 +1,675 @@
 <!DOCTYPE html>
-<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
+<html lang="{{ current_language }}"
+      dir="{% if current_language == 'ar' %}rtl{% else %}ltr{% endif %}">
+
 <head>
-    <meta charset="UTF-8">
 
-    <!-- Google Tag Manager -->
-    <script>
-    (function(w,d,s,l,i){
-        w[l]=w[l]||[];
-        w[l].push({
-            'gtm.start': new Date().getTime(),
-            event:'gtm.js'
-        });
+<!-- Google Tag Manager -->
+<script>
+(function(w,d,s,l,i){
+    w[l]=w[l]||[];
+    w[l].push({
+        'gtm.start': new Date().getTime(),
+        event:'gtm.js'
+    });
 
-        var f=d.getElementsByTagName(s)[0],
-            j=d.createElement(s),
-            dl=l!='dataLayer' ? '&l='+l : '';
+    var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),
+        dl=l!='dataLayer' ? '&l='+l : '';
 
-        j.async=true;
-        j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+    j.async=true;
+    j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
 
-        f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-5HWZM8XR');
-    </script>
-    <!-- End Google Tag Manager -->
+    f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5HWZM8XR');
+</script>
+<!-- End Google Tag Manager -->
 
-    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <meta name="google-site-verification"
-          content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+
+<meta name="google-site-verification"
+      content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
+
+
+<script async
+        custom-element="amp-auto-ads"
+        src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
+</script>
+
+
+<link rel="icon"
+      type="image/png"
+      href="{{ url_for('static', filename='logo.png') }}">
+
+
+<!-- =========================
+     PAGE TITLE
+========================= -->
+
+<title>
+    {% if current_language == 'ar' %}
+        أخبار Corvx — {{ country_name }}
+    {% elif current_language == 'fr' %}
+        Actualités Corvx — {{ country_name }}
+    {% elif current_language == 'es' %}
+        Noticias Corvx — {{ country_name }}
+    {% else %}
+        Corvx News — {{ country_name }}
+    {% endif %}
+</title>
+
+
+<!-- =========================
+     SEO DESCRIPTION
+========================= -->
+
+<meta name="description"
+      content="
+      {% if current_language == 'ar' %}
+          آخر الأخبار والتحديثات في {{ country_name }}.
+      {% elif current_language == 'fr' %}
+          Les dernières actualités et mises à jour de {{ country_name }}.
+      {% elif current_language == 'es' %}
+          Las últimas noticias y actualizaciones de {{ country_name }}.
+      {% else %}
+          Latest news and updates from {{ country_name }}.
+      {% endif %}
+      ">
+
+
+<link rel="canonical"
+      href="{{ canonical_url }}">
+
+
+{% for code, url in absolute_home_urls.items() %}
+    <link rel="alternate"
+          hreflang="{{ code }}"
+          href="{{ url }}">
+{% endfor %}
+
+
+<meta property="og:site_name"
+      content="Corvx News">
+
+
+<meta property="og:type"
+      content="website">
+
+
+<meta property="og:title"
+      content="
+      {% if current_language == 'ar' %}
+          أخبار Corvx — {{ country_name }}
+      {% elif current_language == 'fr' %}
+          Actualités Corvx — {{ country_name }}
+      {% elif current_language == 'es' %}
+          Noticias Corvx — {{ country_name }}
+      {% else %}
+          Corvx News — {{ country_name }}
+      {% endif %}
+      ">
+
+
+<meta property="og:description"
+      content="
+      {% if current_language == 'ar' %}
+          آخر الأخبار والتحديثات في {{ country_name }}.
+      {% elif current_language == 'fr' %}
+          Les dernières actualités et mises à jour de {{ country_name }}.
+      {% elif current_language == 'es' %}
+          Las últimas noticias y actualizaciones de {{ country_name }}.
+      {% else %}
+          Latest news and updates from {{ country_name }}.
+      {% endif %}
+      ">
+
+
+<meta property="og:url"
+      content="{{ canonical_url }}">
+
+
+<meta name="twitter:card"
+      content="summary">
+
+
+<meta name="twitter:title"
+      content="
+      {% if current_language == 'ar' %}
+          أخبار Corvx — {{ country_name }}
+      {% elif current_language == 'fr' %}
+          Actualités Corvx — {{ country_name }}
+      {% elif current_language == 'es' %}
+          Noticias Corvx — {{ country_name }}
+      {% else %}
+          Corvx News — {{ country_name }}
+      {% endif %}
+      ">
+
+
+<meta name="twitter:description"
+      content="
+      {% if current_language == 'ar' %}
+          آخر الأخبار والتحديثات في {{ country_name }}.
+      {% elif current_language == 'fr' %}
+          Les dernières actualités et mises à jour de {{ country_name }}.
+      {% elif current_language == 'es' %}
+          Las últimas noticias y actualizaciones de {{ country_name }}.
+      {% else %}
+          Latest news and updates from {{ country_name }}.
+      {% endif %}
+      ">
+
+
+{% if adsense_client %}
+
+    <!-- Google AdSense -->
 
     <script async
-            custom-element="amp-auto-ads"
-            src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
+            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+            crossorigin="anonymous">
     </script>
 
-    <link rel="icon"
-          type="image/png"
-          href="{{ url_for('static', filename='logo.png') }}">
+{% endif %}
 
-    <title>Corvx News — {{ country_name }}</title>
 
-    <meta name="description"
-          content="{{ seo_description(country_name ~ ' latest news') }}">
+{% if website_schema %}
 
-    <link rel="canonical"
-          href="{{ canonical_url }}">
+    <!-- Structured Data -->
 
-    {% for code, url in absolute_home_urls.items() %}
-        <link rel="alternate"
-              hreflang="{{ code }}"
-              href="{{ url }}">
-    {% endfor %}
+    <script type="application/ld+json">
+        {{ website_schema | tojson }}
+    </script>
 
-    <meta property="og:site_name"
-          content="Corvx News">
+{% endif %}
 
-    <meta property="og:type"
-          content="website">
 
-    <meta property="og:title"
-          content="Corvx News — {{ country_name }}">
-
-    <meta property="og:description"
-          content="{{ seo_description(country_name ~ ' latest news') }}">
-
-    <meta property="og:url"
-          content="{{ canonical_url }}">
-
-    <meta name="twitter:card"
-          content="summary">
-
-    <meta name="twitter:title"
-          content="Corvx News — {{ country_name }}">
-
-    <meta name="twitter:description"
-          content="{{ seo_description(country_name ~ ' latest news') }}">
-
-    {% if adsense_client %}
-        <!-- Google AdSense -->
-        <script async
-                src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
-                crossorigin="anonymous">
-        </script>
-    {% endif %}
-
-    {% if website_schema %}
-        <!-- Structured Data -->
-        <script type="application/ld+json">
-            {{ website_schema | tojson }}
-        </script>
-    {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}">
 
 </head>
+
+
 <body>
-<!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
-<amp-auto-ads type="adsense"
-        data-ad-client="ca-pub-6569442856013984">
-</amp-auto-ads>
-<header class="site-header">
-    <div class="logo notranslate" translate="no">Corvx NEWS</div>
 
-    <div class="controls">
-        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
-        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">AI Tools</a>
-        <form method="get">
-            <input type="hidden" name="country" value="{{ current_country }}">
-            <select name="lang" onchange="this.form.submit()">
-                {% for code, name in languages.items() %}
-                <option value="{{ code }}" {% if code == current_language %}selected{% endif %}>{{ name }}</option>
-                {% endfor %}
-            </select>
-        </form>
 
-        <form method="get">
-            <input type="hidden" name="lang" value="{{ current_language }}">
-            <select name="country" onchange="this.form.submit()">
-                {% for code, info in countries.items() %}
-                <option value="{{ code }}" {% if code == current_country %}selected{% endif %}>{{ info.native }}</option>
-                {% endfor %}
-            </select>
-        </form>
-    </div>
-</header>
+<!-- ============================================================
+     CONTROLS
+============================================================ -->
 
-<main>
+<div class="controls">
 
-    <div class="hero">
-        <h1>Latest News — {{ country_name }}</h1>
-        <p>News selected for your country and language.</p>
-    </div>
-    {% if articles %}
-        <div class="grid">
-        {% for article in articles %}
-            <article class="card">
-                {% if article.image %}
-                    <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
-                {% endif %}
-                <div class="card-content">
-                    <span class="category">{{ article.category or "News" }}</span>
-                    <h2>{{ article.title }}</h2>
-                    <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
-                    <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
-                        Read article &rarr;
-                    </a>
-                </div>
-            </article>
-        {% endfor %}
-        </div>
-    {% else %}
-        <div class="no-news">
-            <h2><span class="robot-dot"></span> No news yet</h2>
-            <p>Collecting the latest news for {{ country_name }}. Check back in a few minutes.</p>
-        </div>
-    {% endif %}
 
-    {% if ai_tools_articles %}
-        <section class="ai-tools-section" style="margin-top: 40px;">
-            <div class="hero">
-                <h2>AI Tools</h2>
-                <p>Latest artificial intelligence tools and updates.</p>
-            </div>
+    <!-- JOBS -->
 
-            <div class="grid">
-            {% for article in ai_tools_articles %}
-                <article class="card">
-                    {% if article.image %}
-                        <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
-                    {% endif %}
-                    <div class="card-content">
-                        <span class="category">{{ article.category or "Artificial Intelligence" }}</span>
-                        <h2>{{ article.title }}</h2>
-                        <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
-                        <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
-                            Read article &rarr;
-                        </a>
-                    </div>
-                </article>
+    <a href="{{ url_for('jobs_page') }}"
+       style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">
+
+        {% if current_language == 'ar' %}
+            الوظائف
+        {% elif current_language == 'fr' %}
+            Emplois
+        {% elif current_language == 'es' %}
+            Empleos
+        {% else %}
+            Jobs
+        {% endif %}
+
+    </a>
+
+
+    <!-- AI TOOLS -->
+
+    <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}"
+       style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">
+
+        {% if current_language == 'ar' %}
+            أدوات الذكاء الاصطناعي
+        {% elif current_language == 'fr' %}
+            Outils IA
+        {% elif current_language == 'es' %}
+            Herramientas de IA
+        {% else %}
+            AI Tools
+        {% endif %}
+
+    </a>
+
+
+    <!-- LANGUAGE SELECT -->
+
+    <form method="get">
+
+        <input type="hidden"
+               name="country"
+               value="{{ current_country }}">
+
+        <select name="lang"
+                onchange="this.form.submit()">
+
+            {% for code, name in languages.items() %}
+
+                <option value="{{ code }}"
+                        {% if code == current_language %}selected{% endif %}>
+                    {{ name }}
+                </option>
+
             {% endfor %}
+
+        </select>
+
+    </form>
+
+
+    <!-- COUNTRY SELECT -->
+
+    <form method="get">
+
+        <input type="hidden"
+               name="lang"
+               value="{{ current_language }}">
+
+        <select name="country"
+                onchange="this.form.submit()">
+
+            {% for code, info in countries.items() %}
+
+                <option value="{{ code }}"
+                        {% if code == current_country %}selected{% endif %}>
+                    {{ info.native }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+    </form>
+
+</div>
+
+
+
+<!-- ============================================================
+     HERO / LATEST NEWS
+============================================================ -->
+
+<div class="hero">
+
+    <h1>
+
+        {% if current_language == 'ar' %}
+            آخر الأخبار — {{ country_name }}
+
+        {% elif current_language == 'fr' %}
+            Dernières actualités — {{ country_name }}
+
+        {% elif current_language == 'es' %}
+            Últimas noticias — {{ country_name }}
+
+        {% else %}
+            Latest News — {{ country_name }}
+        {% endif %}
+
+    </h1>
+
+
+    <p>
+
+        {% if current_language == 'ar' %}
+            أخبار مختارة حسب بلدك ولغتك.
+
+        {% elif current_language == 'fr' %}
+            Actualités sélectionnées pour votre pays et votre langue.
+
+        {% elif current_language == 'es' %}
+            Noticias seleccionadas para su país e idioma.
+
+        {% else %}
+            News selected for your country and language.
+        {% endif %}
+
+    </p>
+
+</div>
+
+
+
+<!-- ============================================================
+     NEWS
+============================================================ -->
+
+{% if articles %}
+
+    <div class="grid">
+
+    {% for article in articles %}
+
+        <article class="card">
+
+
+            {% if article.image %}
+
+                <img src="{{ article.image }}"
+                     alt="{{ article.title }}"
+                     loading="lazy">
+
+            {% endif %}
+
+
+            <div class="card-content">
+
+
+                <!-- CATEGORY -->
+
+                <span class="category">
+
+                    {% if article.category %}
+
+                        {{ article.category }}
+
+                    {% else %}
+
+                        {% if current_language == 'ar' %}
+                            أخبار
+                        {% elif current_language == 'fr' %}
+                            Actualités
+                        {% elif current_language == 'es' %}
+                            Noticias
+                        {% else %}
+                            News
+                        {% endif %}
+
+                    {% endif %}
+
+                </span>
+
+
+                <!-- TITLE -->
+
+                <h2>
+                    {{ article.title }}
+                </h2>
+
+
+                <!-- CONTENT -->
+
+                <p>
+
+                    {{ article.content[:240] }}
+
+                    {% if article.content|length > 240 %}
+                        ...
+                    {% endif %}
+
+                </p>
+
+
+                <!-- READ ARTICLE -->
+
+                <a class="read"
+                   href="{{ url_for(
+                       'article_detail',
+                       article_id=article.id,
+                       country=current_country,
+                       lang=current_language
+                   ) }}">
+
+                    {% if current_language == 'ar' %}
+                        اقرأ المقال →
+
+                    {% elif current_language == 'fr' %}
+                        Lire l’article →
+
+                    {% elif current_language == 'es' %}
+                        Leer el artículo →
+
+                    {% else %}
+                        Read article →
+
+                    {% endif %}
+
+                </a>
+
             </div>
-        </section>
-    {% endif %}
 
-</main>
+        </article>
 
-<footer>
-    &copy; {{ 2026 }} Corvx News.
-</footer>
+    {% endfor %}
+
+    </div>
+
+
+
+<!-- ============================================================
+     NO NEWS
+============================================================ -->
+
+{% else %}
+
+    <div class="no-news">
+
+        <h2>
+
+            <span class="robot-dot"></span>
+
+            {% if current_language == 'ar' %}
+                لا توجد أخبار بعد
+
+            {% elif current_language == 'fr' %}
+                Aucune actualité pour le moment
+
+            {% elif current_language == 'es' %}
+                No hay noticias todavía
+
+            {% else %}
+                No news yet
+
+            {% endif %}
+
+        </h2>
+
+
+        <p>
+
+            {% if current_language == 'ar' %}
+
+                نقوم بجمع آخر الأخبار لـ {{ country_name }}.
+                تحقق مرة أخرى بعد بضع دقائق.
+
+            {% elif current_language == 'fr' %}
+
+                Nous collectons les dernières actualités pour {{ country_name }}.
+                Revenez dans quelques minutes.
+
+            {% elif current_language == 'es' %}
+
+                Estamos recopilando las últimas noticias para {{ country_name }}.
+                Vuelve a consultar en unos minutos.
+
+            {% else %}
+
+                Collecting the latest news for {{ country_name }}.
+                Check back in a few minutes.
+
+            {% endif %}
+
+        </p>
+
+    </div>
+
+{% endif %}
+
+
+
+<!-- ============================================================
+     AI TOOLS SECTION
+============================================================ -->
+
+{% if ai_tools_articles %}
+
+    <section class="ai-tools-section"
+             style="margin-top: 40px;">
+
+
+        <div class="hero">
+
+            <h2>
+
+                {% if current_language == 'ar' %}
+                    أدوات الذكاء الاصطناعي
+
+                {% elif current_language == 'fr' %}
+                    Outils d’intelligence artificielle
+
+                {% elif current_language == 'es' %}
+                    Herramientas de inteligencia artificial
+
+                {% else %}
+                    AI Tools
+
+                {% endif %}
+
+            </h2>
+
+
+            <p>
+
+                {% if current_language == 'ar' %}
+
+                    أحدث أدوات الذكاء الاصطناعي والتحديثات.
+
+                {% elif current_language == 'fr' %}
+
+                    Les derniers outils et actualités de l’intelligence artificielle.
+
+                {% elif current_language == 'es' %}
+
+                    Las últimas herramientas y novedades de inteligencia artificial.
+
+                {% else %}
+
+                    Latest artificial intelligence tools and updates.
+
+                {% endif %}
+
+            </p>
+
+        </div>
+
+
+
+        <div class="grid">
+
+
+        {% for article in ai_tools_articles %}
+
+
+            <article class="card">
+
+
+                {% if article.image %}
+
+                    <img src="{{ article.image }}"
+                         alt="{{ article.title }}"
+                         loading="lazy">
+
+                {% endif %}
+
+
+                <div class="card-content">
+
+
+                    <!-- AI CATEGORY -->
+
+                    <span class="category">
+
+                        {% if article.category %}
+
+                            {{ article.category }}
+
+                        {% else %}
+
+                            {% if current_language == 'ar' %}
+                                الذكاء الاصطناعي
+
+                            {% elif current_language == 'fr' %}
+                                Intelligence artificielle
+
+                            {% elif current_language == 'es' %}
+                                Inteligencia artificial
+
+                            {% else %}
+                                Artificial Intelligence
+
+                            {% endif %}
+
+                        {% endif %}
+
+                    </span>
+
+
+                    <!-- AI ARTICLE TITLE -->
+
+                    <h2>
+                        {{ article.title }}
+                    </h2>
+
+
+                    <!-- AI ARTICLE CONTENT -->
+
+                    <p>
+
+                        {{ article.content[:240] }}
+
+                        {% if article.content|length > 240 %}
+                            ...
+                        {% endif %}
+
+                    </p>
+
+
+                    <!-- READ ARTICLE -->
+
+                    <a class="read"
+                       href="{{ url_for(
+                           'article_detail',
+                           article_id=article.id,
+                           country=current_country,
+                           lang=current_language
+                       ) }}">
+
+                        {% if current_language == 'ar' %}
+                            اقرأ المقال →
+
+                        {% elif current_language == 'fr' %}
+                            Lire l’article →
+
+                        {% elif current_language == 'es' %}
+                            Leer el artículo →
+
+                        {% else %}
+                            Read article →
+
+                        {% endif %}
+
+                    </a>
+
+                </div>
+
+            </article>
+
+
+        {% endfor %}
+
+        </div>
+
+    </section>
+
+{% endif %}
+
 
 </body>
 </html>
+
