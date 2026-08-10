@@ -1839,6 +1839,86 @@ def get_related_articles(article_id, country, category, primary_keyword, limit=5
         print(f"!! Related articles failed: {e}")
         return []
 
+@app.route("/ai-tools")
+def ai_tools_page():
+    country = request.args.get("country")
+    if country not in COUNTRIES:
+        country = detect_country()
+
+    lang = request.args.get("lang")
+    if lang not in LANGUAGES:
+        lang = detect_language(country)
+
+    country_info = COUNTRIES.get(country, COUNTRIES["ma"])
+    title_column = f"title_{lang}"
+    content_column = f"content_{lang}"
+    ai_tools_articles = []
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        query = f"""
+            SELECT
+                id, {title_column}, {content_column}, title_en, content_en,
+                image_url, category, source_name, created_at
+            FROM articles
+            WHERE LOWER(COALESCE(category, '')) = 'artificial intelligence'
+            ORDER BY created_at DESC
+            LIMIT 50
+        """
+        cur.execute(query)
+        rows = cur.fetchall()
+
+        for row in rows:
+            article_id = row[0]
+            title = row[1]
+            content = row[2]
+            fallback_title = row[3]
+            fallback_content = row[4]
+
+            if lang != "en" and (
+                not looks_like_lang(title, lang)
+                or not looks_like_lang(content, lang)
+            ):
+                new_title = fallback_title if not looks_like_lang(title, lang) else title
+                new_content = fallback_content if not looks_like_lang(content, lang) else content
+                new_title = safe_translate(new_title, lang) or new_title
+                new_content = safe_translate(new_content, lang) or new_content
+                cache_translation(article_id, lang, new_title, new_content)
+                title, content = new_title, new_content
+
+            ai_tools_articles.append({
+                "id": article_id,
+                "title": title,
+                "content": content or "",
+                "image": row[5],
+                "category": row[6],
+                "source": row[7],
+                "created_at": row[8]
+            })
+
+        cur.close()
+        conn.close()
+
+    except Exception as e:
+        print(f"!! AI Tools database error: {e}")
+
+    return render_template_string(
+        AI_TOOLS_TEMPLATE,
+        base_css=BASE_CSS,
+        ai_tools_articles=ai_tools_articles,
+        countries=COUNTRIES,
+        languages=LANGUAGES,
+        current_country=country,
+        current_language=lang,
+        country_name=country_info["name"],
+        canonical_url=absolute_url(
+            f"/ai-tools?country={urllib.parse.quote(country)}&lang={urllib.parse.quote(lang)}"
+        ),
+    )
+
+
 @app.route("/article/<int:article_id>")
 def article_detail(article_id):
     country = request.args.get("country")
@@ -2430,6 +2510,86 @@ footer {
 # HOME HTML
 # ============================================================
 
+AI_TOOLS_TEMPLATE = """<!DOCTYPE html>
+<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+    <title>AI Tools — Corvex News</title>
+    <meta name="description" content="Artificial intelligence tools and AI agent news on Corvex News.">
+    <link rel="canonical" href="{{ canonical_url }}">
+    <style>
+        {{ base_css }}
+    </style>
+</head>
+<body>
+<header class="site-header">
+    <div class="logo notranslate" translate="no">CORVEX NEWS</div>
+
+    <div class="controls">
+        <a href="{{ url_for('home', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">Home</a>
+        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">AI Tools</a>
+
+        <form method="get" action="{{ url_for('ai_tools_page') }}">
+            <input type="hidden" name="country" value="{{ current_country }}">
+            <select name="lang" onchange="this.form.submit()">
+                {% for code, name in languages.items() %}
+                <option value="{{ code }}" {% if code == current_language %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <form method="get" action="{{ url_for('ai_tools_page') }}">
+            <input type="hidden" name="lang" value="{{ current_language }}">
+            <select name="country" onchange="this.form.submit()">
+                {% for code, info in countries.items() %}
+                <option value="{{ code }}" {% if code == current_country %}selected{% endif %}>{{ info.native }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</header>
+
+<main>
+    <div class="hero">
+        <h1>AI Tools</h1>
+        <p>Artificial intelligence tools, agents and the latest AI updates.</p>
+    </div>
+
+    {% if ai_tools_articles %}
+        <div class="grid">
+        {% for article in ai_tools_articles %}
+            <article class="card">
+                {% if article.image %}
+                    <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
+                {% endif %}
+                <div class="card-content">
+                    <span class="category">{{ article.category or "Artificial Intelligence" }}</span>
+                    <h2>{{ article.title }}</h2>
+                    <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
+                    <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
+                        Read article &rarr;
+                    </a>
+                </div>
+            </article>
+        {% endfor %}
+        </div>
+    {% else %}
+        <div class="no-news">
+            <h2>No AI tools yet</h2>
+            <p>There are no artificial intelligence articles available yet.</p>
+        </div>
+    {% endif %}
+</main>
+
+<footer>
+    &copy; {{ current_language|upper }} Corvex News
+</footer>
+</body>
+</html>"""
+
 HOME_TEMPLATE = """<!DOCTYPE html>
 <html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
 <head>
@@ -2541,6 +2701,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
     <div class="controls">
         <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">AI Tools</a>
         <form method="get">
             <input type="hidden" name="country" value="{{ current_country }}">
             <select name="lang" onchange="this.form.submit()">
