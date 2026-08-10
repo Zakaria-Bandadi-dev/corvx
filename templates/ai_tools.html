@@ -1,0 +1,77 @@
+AI_TOOLS_TEMPLATE = """<!DOCTYPE html>
+<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+    <title>AI Tools — Corvx News</title>
+    <meta name="description" content="Artificial intelligence tools and AI agent news on Corvx News.">
+    <link rel="canonical" href="{{ canonical_url }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<header class="site-header">
+    <div class="logo notranslate" translate="no">Corvx NEWS</div>
+
+    <div class="controls">
+        <a href="{{ url_for('home', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">Home</a>
+        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">AI Tools</a>
+
+        <form method="get" action="{{ url_for('ai_tools_page') }}">
+            <input type="hidden" name="country" value="{{ current_country }}">
+            <select name="lang" onchange="this.form.submit()">
+                {% for code, name in languages.items() %}
+                <option value="{{ code }}" {% if code == current_language %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <form method="get" action="{{ url_for('ai_tools_page') }}">
+            <input type="hidden" name="lang" value="{{ current_language }}">
+            <select name="country" onchange="this.form.submit()">
+                {% for code, info in countries.items() %}
+                <option value="{{ code }}" {% if code == current_country %}selected{% endif %}>{{ info.native }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</header>
+
+<main>
+    <div class="hero">
+        <h1>AI Tools</h1>
+        <p>Artificial intelligence tools, agents and the latest AI updates.</p>
+    </div>
+
+    {% if ai_tools_articles %}
+        <div class="grid">
+        {% for article in ai_tools_articles %}
+            <article class="card">
+                {% if article.image %}
+                    <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
+                {% endif %}
+                <div class="card-content">
+                    <span class="category">{{ article.category or "Artificial Intelligence" }}</span>
+                    <h2>{{ article.title }}</h2>
+                    <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
+                    <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
+                        Read article &rarr;
+                    </a>
+                </div>
+            </article>
+        {% endfor %}
+        </div>
+    {% else %}
+        <div class="no-news">
+            <h2>No AI tools yet</h2>
+            <p>There are no artificial intelligence articles available yet.</p>
+        </div>
+    {% endif %}
+</main>
+
+<footer>
+    &copy; {{ current_language|upper }} Corvx News
+</footer>
+</body>
+</html>"""
