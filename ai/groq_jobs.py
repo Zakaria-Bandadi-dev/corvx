@@ -1,4 +1,4 @@
-```python
+
 from groq import Groq
 
 from config.settings import (
@@ -132,4 +132,4 @@ def generate_with_groq_jobs(user_prompt):
     print("!! [JOBS] ALL GROQ KEYS FAILED")
 
     return None
-```
+
