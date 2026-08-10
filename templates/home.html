@@ -1,193 +1,96 @@
 <!DOCTYPE html>
-<html lang="{{ current_language }}"
-      dir="{% if current_language == 'ar' %}rtl{% else %}ltr{% endif %}">
-
+<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
 <head>
+    <meta charset="UTF-8">
 
-<!-- Google Tag Manager -->
-<script>
-(function(w,d,s,l,i){
-    w[l]=w[l]||[];
-    w[l].push({
-        'gtm.start': new Date().getTime(),
-        event:'gtm.js'
-    });
+    <!-- Google Tag Manager -->
+    <script>
+    (function(w,d,s,l,i){
+        w[l]=w[l]||[];
+        w[l].push({
+            'gtm.start': new Date().getTime(),
+            event:'gtm.js'
+        });
 
-    var f=d.getElementsByTagName(s)[0],
-        j=d.createElement(s),
-        dl=l!='dataLayer' ? '&l='+l : '';
+        var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),
+            dl=l!='dataLayer' ? '&l='+l : '';
 
-    j.async=true;
-    j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+        j.async=true;
+        j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
 
-    f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-5HWZM8XR');
-</script>
-<!-- End Google Tag Manager -->
+        f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-5HWZM8XR');
+    </script>
+    <!-- End Google Tag Manager -->
 
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
-
-
-<meta name="google-site-verification"
-      content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
-
-
-<script async
-        custom-element="amp-auto-ads"
-        src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
-</script>
-
-
-<link rel="icon"
-      type="image/png"
-      href="{{ url_for('static', filename='logo.png') }}">
-
-
-<!-- =========================
-     PAGE TITLE
-========================= -->
-
-<title>
-    {% if current_language == 'ar' %}
-        أخبار Corvx — {{ country_name }}
-    {% elif current_language == 'fr' %}
-        Actualités Corvx — {{ country_name }}
-    {% elif current_language == 'es' %}
-        Noticias Corvx — {{ country_name }}
-    {% else %}
-        Corvx News — {{ country_name }}
-    {% endif %}
-</title>
-
-
-<!-- =========================
-     SEO DESCRIPTION
-========================= -->
-
-<meta name="description"
-      content="
-      {% if current_language == 'ar' %}
-          آخر الأخبار والتحديثات في {{ country_name }}.
-      {% elif current_language == 'fr' %}
-          Les dernières actualités et mises à jour de {{ country_name }}.
-      {% elif current_language == 'es' %}
-          Las últimas noticias y actualizaciones de {{ country_name }}.
-      {% else %}
-          Latest news and updates from {{ country_name }}.
-      {% endif %}
-      ">
-
-
-<link rel="canonical"
-      href="{{ canonical_url }}">
-
-
-{% for code, url in alternate_urls.items() %}
-    <link rel="alternate"
-          hreflang="{{ code }}"
-          href="{{ url }}">
-{% endfor %}
-
-
-<meta property="og:site_name"
-      content="Corvx News">
-
-
-<meta property="og:type"
-      content="website">
-
-
-<meta property="og:title"
-      content="
-      {% if current_language == 'ar' %}
-          أخبار Corvx — {{ country_name }}
-      {% elif current_language == 'fr' %}
-          Actualités Corvx — {{ country_name }}
-      {% elif current_language == 'es' %}
-          Noticias Corvx — {{ country_name }}
-      {% else %}
-          Corvx News — {{ country_name }}
-      {% endif %}
-      ">
-
-
-<meta property="og:description"
-      content="
-      {% if current_language == 'ar' %}
-          آخر الأخبار والتحديثات في {{ country_name }}.
-      {% elif current_language == 'fr' %}
-          Les dernières actualités et mises à jour de {{ country_name }}.
-      {% elif current_language == 'es' %}
-          Las últimas noticias y actualizaciones de {{ country_name }}.
-      {% else %}
-          Latest news and updates from {{ country_name }}.
-      {% endif %}
-      ">
-
-
-<meta property="og:url"
-      content="{{ canonical_url }}">
-
-
-<meta name="twitter:card"
-      content="summary">
-
-
-<meta name="twitter:title"
-      content="
-      {% if current_language == 'ar' %}
-          أخبار Corvx — {{ country_name }}
-      {% elif current_language == 'fr' %}
-          Actualités Corvx — {{ country_name }}
-      {% elif current_language == 'es' %}
-          Noticias Corvx — {{ country_name }}
-      {% else %}
-          Corvx News — {{ country_name }}
-      {% endif %}
-      ">
-
-
-<meta name="twitter:description"
-      content="
-      {% if current_language == 'ar' %}
-          آخر الأخبار والتحديثات في {{ country_name }}.
-      {% elif current_language == 'fr' %}
-          Les dernières actualités et mises à jour de {{ country_name }}.
-      {% elif current_language == 'es' %}
-          Las últimas noticias y actualizaciones de {{ country_name }}.
-      {% else %}
-          Latest news and updates from {{ country_name }}.
-      {% endif %}
-      ">
-
-
-{% if adsense_client %}
-
-    <!-- Google AdSense -->
+    <meta name="google-site-verification"
+          content="Ij2OlBXL9zUgKa5Z21Q32r7eqdC8jNGTs3n0m9kZD4A" />
 
     <script async
-            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
-            crossorigin="anonymous">
+            custom-element="amp-auto-ads"
+            src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
     </script>
 
-{% endif %}
+    <link rel="icon"
+          type="image/png"
+          href="{{ url_for('static', filename='logo.png') }}">
 
+    <title>Corvx News — {{ country_name }}</title>
 
-{% if website_schema %}
+    <meta name="description"
+          content="{{ seo_description(country_name ~ ' latest news') }}">
 
-    <!-- Structured Data -->
+    <link rel="canonical"
+          href="{{ canonical_url }}">
 
-    <script type="application/ld+json">
-        {{ website_schema | tojson }}
-    </script>
+    {% for code, url in absolute_home_urls.items() %}
+        <link rel="alternate"
+              hreflang="{{ code }}"
+              href="{{ url }}">
+    {% endfor %}
 
-{% endif %}
+    <meta property="og:site_name"
+          content="Corvx News">
 
+    <meta property="og:type"
+          content="website">
 
-<link rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}">
+    <meta property="og:title"
+          content="Corvx News — {{ country_name }}">
+
+    <meta property="og:description"
+          content="{{ seo_description(country_name ~ ' latest news') }}">
+
+    <meta property="og:url"
+          content="{{ canonical_url }}">
+
+    <meta name="twitter:card"
+          content="summary">
+
+    <meta name="twitter:title"
+          content="Corvx News — {{ country_name }}">
+
+    <meta name="twitter:description"
+          content="{{ seo_description(country_name ~ ' latest news') }}">
+
+    {% if adsense_client %}
+        <!-- Google AdSense -->
+        <script async
+                src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+                crossorigin="anonymous">
+        </script>
+    {% endif %}
+
+    {% if website_schema %}
+        <!-- Structured Data -->
+        <script type="application/ld+json">
+            {{ website_schema | tojson }}
+        </script>
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
 </head>
 
