@@ -1,4 +1,3 @@
-````python
 import json
 import re
 import feedparser
@@ -453,4 +452,3 @@ def build_website_schema():
             },
         ],
     }
-````
