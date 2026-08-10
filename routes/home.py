@@ -12,6 +12,7 @@ from ai.seo import build_website_schema
 from utils.seo_helpers import absolute_url, seo_description
 from robots.news_robot import robot_status
 
+@app.route("/")
 def home():
     country = request.args.get("country")
     if country not in COUNTRIES:

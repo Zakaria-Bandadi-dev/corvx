@@ -3,6 +3,7 @@ from app import app
 from config.countries import COUNTRIES
 from robots.news_robot import robot_status, run_robot
 
+@app.route("/robot-status")
 def robot_status_json():
     data = dict(robot_status)
     data["last_run_start"] = robot_status["last_run_start"].isoformat() if robot_status["last_run_start"] else None
@@ -14,6 +15,7 @@ def robot_status_json():
     return jsonify(data)
 
 
+@app.route("/run-robot")
 def manual_robot():
     run_robot()
     return """

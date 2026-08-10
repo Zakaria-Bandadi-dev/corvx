@@ -10,6 +10,7 @@ from robots.news_robot import robot_status
 from robots.jobs_robot import jobs_robot_status
 from utils.seo_helpers import absolute_url
 
+@app.route("/ads.txt")
 def ads_txt():
     if not ADSENSE_CLIENT:
         return (
@@ -25,6 +26,7 @@ def ads_txt():
     }
 
 
+@app.route("/set-country/<country>")
 def set_country(country):
     if country not in COUNTRIES:
         country = "ma"
@@ -34,6 +36,7 @@ def set_country(country):
     return response
 
 
+@app.route("/set-language/<lang>")
 def set_language(lang):
     if lang not in LANGUAGES:
         lang = "en"
@@ -45,6 +48,7 @@ def set_language(lang):
     return response
 
 
+@app.route("/fix-translations")
 def fix_translations():
     fixed = 0
     checked = 0
@@ -98,6 +102,7 @@ def fix_translations():
         return jsonify({"error": str(e), "checked": checked, "fixed": fixed}), 500
 
 
+@app.route("/health")
 def health():
     return {
         "status": "ok",

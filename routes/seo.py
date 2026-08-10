@@ -7,6 +7,7 @@ from config.settings import SEO_RESEARCH_ENABLED, SEO_MIN_SCORE, QUALITY_MIN_SCO
 from database.connection import get_db_connection
 from utils.seo_helpers import absolute_url, article_path
 
+@app.route("/robots.txt")
 def robots_txt():
     sitemap_url = absolute_url("/sitemap.xml")
     return (
@@ -19,6 +20,7 @@ def robots_txt():
     ), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
+@app.route("/sitemap.xml")
 def sitemap_xml():
     urls = []
 
@@ -84,6 +86,7 @@ def sitemap_xml():
     }
 
 
+@app.route("/seo-status")
 def seo_status():
     try:
         conn = get_db_connection(); cur = conn.cursor()

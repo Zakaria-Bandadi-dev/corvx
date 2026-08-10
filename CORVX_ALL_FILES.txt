@@ -1,7 +1,6 @@
 
-================================================================================
-FILE: README.md
-================================================================================
+===== README.md =====
+
 # Corvx News — Modular Flask Structure
 
 Pure organization/refactoring of the supplied Flask application.
@@ -18,48 +17,19 @@ The original Flask host/port behavior is retained:
 
 Keep existing static assets such as `static/logo.png` from the original project.
 
-================================================================================
-FILE: __pycache__/app.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: ai/__init__.py
-================================================================================
+===== ai/__init__.py =====
 
-================================================================================
-FILE: ai/__pycache__/__init__.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: ai/__pycache__/article_generator.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: ai/__pycache__/groq_jobs.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== ai/article_generator.py =====
 
-================================================================================
-FILE: ai/__pycache__/groq_news.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: ai/__pycache__/seo.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: ai/article_generator.py
-================================================================================
 import json
 import re
 from config.countries import COUNTRIES
-from config.settings import SEO_MIN_SCORE, QUALITY_MIN_SCORE
+from config.settings import SEO_MIN_SCORE, QUALITY_MIN_SCORE, SEO_RESEARCH_ENABLED
 from ai.groq_news import generate_with_groq, generate_with_groq_compound
+from ai.seo import _clean_json, seo_score_local
 from utils.seo_helpers import seo_description
 
 def generate_article(news_item, country, seo_plan=None, verification=None):
@@ -206,13 +176,47 @@ content, SEO title, meta description, keywords, slug and FAQs.
     data["faq"] = data.get("faq") or article_data.get("faq", [])
     return data
 
-================================================================================
-FILE: ai/groq_jobs.py
-================================================================================
+
+===== ai/groq_jobs.py =====
+
 from groq import Groq
 from config.settings import JOB_GROQ_KEYS, JOBS_GROQ_MODEL
 
 current_job_groq_key = 0
+
+JOBS_SYSTEM_PROMPT = """أنت مساعد كيقلب على عروض الخدمة الحقيقية فالمواقع الرسمية.
+خاصك تستعمل الأدوات المتوفرة عندك (web_search و visit_website) باش تدخل
+للموقع المعطى وتلقى آخر 5 إلى 10 عروض خدمة جداد الموجودين فيه دابا.
+
+لكل عرض، رجع المعلومات التالية بالعربية فقط (حتى ولو كان الموقع الأصلي
+بالفرنسية ولا بالإنجليزية، ترجم/لخص بالعربية):
+
+- title_ar: عنوان المنصب
+- company_ar: اسم الشركة أو المؤسسة
+- description_ar: ملخص قصير للمهمة
+- conditions_ar: الشروط (المستوى الدراسي، الديبلوم، التجربة، الحرفة...)
+- documents_ar: الوثائق المطلوبة للترشيح (CV، ديبلوم، CIN، رسالة تحفيزية...)
+- how_to_apply_ar: كيفاش تدير الترشيح بالضبط، خطوة بخطوة
+- deadline: آخر أجل للترشيح إلا كان مذكور، وإلا اكتب "غير محدد"
+- source_url: الرابط المباشر ديال العرض إلا قدرتي تلقاه
+
+رجع الجواب فقط كـ JSON array صحيح، بلا أي شرح، بلا Markdown، بهاد الشكل بالضبط:
+
+[
+  {
+    "title_ar": "...",
+    "company_ar": "...",
+    "description_ar": "...",
+    "conditions_ar": "...",
+    "documents_ar": "...",
+    "how_to_apply_ar": "...",
+    "deadline": "...",
+    "source_url": "..."
+  }
+]
+
+إلا ما لقيتيش عروض جداد، رجع array فارغ: []
+"""
 
 def generate_with_groq_jobs(user_prompt):
     global current_job_groq_key
@@ -264,9 +268,9 @@ def generate_with_groq_jobs(user_prompt):
     print("!! [JOBS] ALL GROQ KEYS FAILED")
     return None
 
-================================================================================
-FILE: ai/groq_news.py
-================================================================================
+
+===== ai/groq_news.py =====
+
 from groq import Groq
 from config.settings import NEWS_GROQ_KEYS, GROQ_MODEL, SEO_GROQ_MODEL
 
@@ -378,11 +382,12 @@ def generate_with_groq_compound(prompt, max_tokens=5000):
             current_groq_key = (current_groq_key + 1) % total
     return None
 
-================================================================================
-FILE: ai/seo.py
-================================================================================
+
+===== ai/seo.py =====
+
 import json
 import re
+import feedparser
 from config.countries import COUNTRIES
 from config.settings import SEO_RESEARCH_ENABLED, TRENDING_LIMIT, SEO_MIN_SCORE, QUALITY_MIN_SCORE
 from ai.groq_news import generate_with_groq_compound
@@ -403,6 +408,21 @@ def _clean_json(raw):
         return json.loads(text)
     except Exception:
         return None
+
+def get_google_trends(country):
+    geo = COUNTRIES.get(country, COUNTRIES["ma"]).get("google_news", "MA")
+    url = f"https://trends.google.com/trending/rss?geo={geo}"
+    try:
+        feed = feedparser.parse(url)
+        items = []
+        for entry in feed.entries[:TRENDING_LIMIT]:
+            title = (entry.get("title") or "").strip()
+            if title:
+                items.append(title)
+        return items
+    except Exception as e:
+        print(f"!! Google Trends RSS failed for {country}: {e}")
+        return []
 
 def trend_score_heuristic(news_item, trend_terms):
     title = (news_item.get("title") or "").lower()
@@ -574,9 +594,9 @@ def build_website_schema():
         ],
     }
 
-================================================================================
-FILE: app.py
-================================================================================
+
+===== app.py =====
+
 from flask import Flask
 
 app = Flask(__name__)
@@ -607,38 +627,13 @@ if __name__ == "__main__":
         debug=False
     )
 
-================================================================================
-FILE: config/__init__.py
-================================================================================
 
-================================================================================
-FILE: config/__pycache__/__init__.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== config/__init__.py =====
 
-================================================================================
-FILE: config/__pycache__/countries.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: config/__pycache__/job_sites.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: config/__pycache__/languages.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== config/countries.py =====
 
-================================================================================
-FILE: config/__pycache__/settings.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: config/countries.py
-================================================================================
 COUNTRIES = {
     "ma": {
         "name": "Morocco",
@@ -775,9 +770,9 @@ COUNTRIES = {
     }
 }
 
-================================================================================
-FILE: config/job_sites.py
-================================================================================
+
+===== config/job_sites.py =====
+
 JOB_SITES = {
     "private_ma": {
         "label": "الخدمة فالمغرب (القطاع الخاص)",
@@ -814,9 +809,9 @@ JOB_SITES = {
     },
 }
 
-================================================================================
-FILE: config/languages.py
-================================================================================
+
+===== config/languages.py =====
+
 LANGUAGES = {
     "ar": "العربية",
     "fr": "Français",
@@ -824,9 +819,9 @@ LANGUAGES = {
     "es": "Español"
 }
 
-================================================================================
-FILE: config/settings.py
-================================================================================
+
+===== config/settings.py =====
+
 import os
 
 GA_ID = os.getenv("GA_ID", "")
@@ -894,38 +889,13 @@ JOBS_GROQ_MODEL = "groq/compound"
 # كل بغا نهار (ساعات)
 JOBS_ROBOT_INTERVAL_HOURS = 24
 
-================================================================================
-FILE: database/__init__.py
-================================================================================
 
-================================================================================
-FILE: database/__pycache__/__init__.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== database/__init__.py =====
 
-================================================================================
-FILE: database/__pycache__/articles.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: database/__pycache__/connection.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: database/__pycache__/initialization.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== database/articles.py =====
 
-================================================================================
-FILE: database/__pycache__/jobs.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: database/articles.py
-================================================================================
 import json
 import re
 from datetime import datetime
@@ -1073,9 +1043,9 @@ def get_related_articles(article_id, country, category, primary_keyword, limit=5
         print(f"!! Related articles failed: {e}")
         return []
 
-================================================================================
-FILE: database/connection.py
-================================================================================
+
+===== database/connection.py =====
+
 import psycopg
 from config.settings import DATABASE_URL
 
@@ -1086,9 +1056,9 @@ def get_db_connection():
         )
     return psycopg.connect(DATABASE_URL)
 
-================================================================================
-FILE: database/initialization.py
-================================================================================
+
+===== database/initialization.py =====
+
 from database.connection import get_db_connection
 
 def init_db():
@@ -1239,9 +1209,11 @@ def init_jobs_db():
     except Exception as e:
         print(f"!! Jobs database initialization failed: {e}")
 
-================================================================================
-FILE: database/jobs.py
-================================================================================
+
+===== database/jobs.py =====
+
+import json
+import hashlib
 from database.connection import get_db_connection
 
 def _extract_jobs_json(raw_text):
@@ -1322,9 +1294,9 @@ def save_job_offer(category, offer):
         print(f"!! [JOBS] Save offer failed: {e}")
         return False
 
-================================================================================
-FILE: requirements.txt
-================================================================================
+
+===== requirements.txt =====
+
 Flask
 feedparser
 requests
@@ -1333,33 +1305,13 @@ groq
 APScheduler
 deep-translator
 
-================================================================================
-FILE: robots/__init__.py
-================================================================================
 
-================================================================================
-FILE: robots/__pycache__/__init__.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== robots/__init__.py =====
 
-================================================================================
-FILE: robots/__pycache__/jobs_robot.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: robots/__pycache__/news_robot.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: robots/__pycache__/scheduler.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== robots/jobs_robot.py =====
 
-================================================================================
-FILE: robots/jobs_robot.py
-================================================================================
 import time
 from datetime import datetime
 from threading import Lock
@@ -1456,9 +1408,9 @@ def run_jobs_robot():
         jobs_robot_status["last_run_saved"] = jobs_robot_status["total_offers_this_run"]
         jobs_robot_lock.release()
 
-================================================================================
-FILE: robots/news_robot.py
-================================================================================
+
+===== robots/news_robot.py =====
+
 import time
 from datetime import datetime
 from threading import Lock
@@ -1466,7 +1418,7 @@ from config.countries import COUNTRIES
 from config.settings import ARTICLES_PER_COUNTRY, TREND_MIN_SCORE, QUALITY_MIN_SCORE
 from services.news_service import get_country_news
 from services.translation_service import translate_article
-from ai.seo import analyze_trend_and_seo, research_story
+from ai.seo import analyze_trend_and_seo, research_story, get_google_trends
 from ai.article_generator import generate_article, quality_check, optimize_article
 from database.articles import article_exists, save_article
 
@@ -1566,9 +1518,9 @@ def run_robot():
         robot_status["last_run_saved"] = robot_status["total_articles_this_run"]
         robot_lock.release()
 
-================================================================================
-FILE: robots/scheduler.py
-================================================================================
+
+===== robots/scheduler.py =====
+
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -1628,53 +1580,13 @@ def start_scheduler():
     print(f"-> Groq API keys — news: {len(NEWS_GROQ_KEYS)} | jobs: {len(JOB_GROQ_KEYS)}")
     print(f"-> Groq models — news: {GROQ_MODEL} | jobs: {JOBS_GROQ_MODEL} | seo: {SEO_GROQ_MODEL}")
 
-================================================================================
-FILE: routes/__init__.py
-================================================================================
 
-================================================================================
-FILE: routes/__pycache__/__init__.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== routes/__init__.py =====
 
-================================================================================
-FILE: routes/__pycache__/ai_tools.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: routes/__pycache__/articles.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: routes/__pycache__/home.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== routes/ai_tools.py =====
 
-================================================================================
-FILE: routes/__pycache__/jobs.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: routes/__pycache__/robot_status.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: routes/__pycache__/seo.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: routes/__pycache__/system.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: routes/ai_tools.py
-================================================================================
 import urllib.parse
 from flask import request, render_template
 from app import app
@@ -1686,6 +1598,7 @@ from services.country_detection import detect_country, detect_language
 from services.translation_service import looks_like_lang, safe_translate
 from utils.seo_helpers import absolute_url
 
+@app.route("/ai-tools")
 def ai_tools_page():
     country = request.args.get("country")
     if country not in COUNTRIES:
@@ -1764,9 +1677,9 @@ def ai_tools_page():
     )
 
 
-================================================================================
-FILE: routes/articles.py
-================================================================================
+
+===== routes/articles.py =====
+
 import json
 import urllib.parse
 from flask import request, render_template
@@ -1781,6 +1694,7 @@ from services.translation_service import looks_like_lang, safe_translate
 from ai.seo import build_schema
 from utils.seo_helpers import absolute_url, article_path, seo_description
 
+@app.route("/article/<int:article_id>")
 def article_detail(article_id):
     country = request.args.get("country")
     if country not in COUNTRIES:
@@ -1870,9 +1784,9 @@ def article_detail(article_id):
     )
 
 
-================================================================================
-FILE: routes/home.py
-================================================================================
+
+===== routes/home.py =====
+
 import urllib.parse
 from flask import request, render_template
 from app import app
@@ -1887,6 +1801,7 @@ from ai.seo import build_website_schema
 from utils.seo_helpers import absolute_url, seo_description
 from robots.news_robot import robot_status
 
+@app.route("/")
 def home():
     country = request.args.get("country")
     if country not in COUNTRIES:
@@ -2030,9 +1945,9 @@ def home():
     )
 
 
-================================================================================
-FILE: routes/jobs.py
-================================================================================
+
+===== routes/jobs.py =====
+
 from flask import request, render_template, jsonify
 from app import app
 from config.job_sites import JOB_SITES
@@ -2040,6 +1955,7 @@ from config.settings import GA_ID, ADSENSE_CLIENT, JOBS_ROBOT_INTERVAL_HOURS
 from database.connection import get_db_connection
 from robots.jobs_robot import jobs_robot_status, run_jobs_robot
 
+@app.route("/jobs")
 def jobs_page():
     category = request.args.get("category")
     if category not in JOB_SITES:
@@ -2093,6 +2009,7 @@ def jobs_page():
     )
 
 
+@app.route("/jobs-status")
 def jobs_status_json():
     data = dict(jobs_robot_status)
     data["last_run_start"] = jobs_robot_status["last_run_start"].isoformat() if jobs_robot_status["last_run_start"] else None
@@ -2100,6 +2017,7 @@ def jobs_status_json():
     return jsonify(data)
 
 
+@app.route("/run-jobs-robot")
 def manual_jobs_robot():
     run_jobs_robot()
     return """
@@ -2108,14 +2026,15 @@ def manual_jobs_robot():
     """
 
 
-================================================================================
-FILE: routes/robot_status.py
-================================================================================
+
+===== routes/robot_status.py =====
+
 from flask import jsonify
 from app import app
 from config.countries import COUNTRIES
 from robots.news_robot import robot_status, run_robot
 
+@app.route("/robot-status")
 def robot_status_json():
     data = dict(robot_status)
     data["last_run_start"] = robot_status["last_run_start"].isoformat() if robot_status["last_run_start"] else None
@@ -2127,6 +2046,7 @@ def robot_status_json():
     return jsonify(data)
 
 
+@app.route("/run-robot")
 def manual_robot():
     run_robot()
     return """
@@ -2135,9 +2055,9 @@ def manual_robot():
     """
 
 
-================================================================================
-FILE: routes/seo.py
-================================================================================
+
+===== routes/seo.py =====
+
 import urllib.parse
 from flask import jsonify
 from app import app
@@ -2147,6 +2067,7 @@ from config.settings import SEO_RESEARCH_ENABLED, SEO_MIN_SCORE, QUALITY_MIN_SCO
 from database.connection import get_db_connection
 from utils.seo_helpers import absolute_url, article_path
 
+@app.route("/robots.txt")
 def robots_txt():
     sitemap_url = absolute_url("/sitemap.xml")
     return (
@@ -2159,6 +2080,7 @@ def robots_txt():
     ), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
+@app.route("/sitemap.xml")
 def sitemap_xml():
     urls = []
 
@@ -2224,6 +2146,7 @@ def sitemap_xml():
     }
 
 
+@app.route("/seo-status")
 def seo_status():
     try:
         conn = get_db_connection(); cur = conn.cursor()
@@ -2247,9 +2170,9 @@ def seo_status():
         return jsonify({"error": str(e)}), 500
 
 
-================================================================================
-FILE: routes/system.py
-================================================================================
+
+===== routes/system.py =====
+
 from flask import request, redirect, url_for, jsonify
 from app import app
 from config.countries import COUNTRIES
@@ -2262,6 +2185,7 @@ from robots.news_robot import robot_status
 from robots.jobs_robot import jobs_robot_status
 from utils.seo_helpers import absolute_url
 
+@app.route("/ads.txt")
 def ads_txt():
     if not ADSENSE_CLIENT:
         return (
@@ -2277,6 +2201,7 @@ def ads_txt():
     }
 
 
+@app.route("/set-country/<country>")
 def set_country(country):
     if country not in COUNTRIES:
         country = "ma"
@@ -2286,6 +2211,7 @@ def set_country(country):
     return response
 
 
+@app.route("/set-language/<lang>")
 def set_language(lang):
     if lang not in LANGUAGES:
         lang = "en"
@@ -2297,6 +2223,7 @@ def set_language(lang):
     return response
 
 
+@app.route("/fix-translations")
 def fix_translations():
     fixed = 0
     checked = 0
@@ -2350,6 +2277,7 @@ def fix_translations():
         return jsonify({"error": str(e), "checked": checked, "fixed": fixed}), 500
 
 
+@app.route("/health")
 def health():
     return {
         "status": "ok",
@@ -2369,38 +2297,13 @@ def health():
     }
 
 
-================================================================================
-FILE: services/__init__.py
-================================================================================
 
-================================================================================
-FILE: services/__pycache__/__init__.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== services/__init__.py =====
 
-================================================================================
-FILE: services/__pycache__/country_detection.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: services/__pycache__/image_service.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: services/__pycache__/news_service.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== services/country_detection.py =====
 
-================================================================================
-FILE: services/__pycache__/translation_service.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
-
-================================================================================
-FILE: services/country_detection.py
-================================================================================
 import ipaddress
 import requests
 from flask import request
@@ -2460,9 +2363,9 @@ def detect_language(country):
 
     return "en"
 
-================================================================================
-FILE: services/image_service.py
-================================================================================
+
+===== services/image_service.py =====
+
 import urllib.parse
 
 def generate_image(prompt):
@@ -2471,9 +2374,9 @@ def generate_image(prompt):
     clean_prompt = urllib.parse.quote(prompt + ", realistic professional news photography")
     return f"[https://image.pollinations.ai/prompt/](https://image.pollinations.ai/prompt/){clean_prompt}"
 
-================================================================================
-FILE: services/news_service.py
-================================================================================
+
+===== services/news_service.py =====
+
 import feedparser
 from config.countries import COUNTRIES
 
@@ -2522,9 +2425,9 @@ def get_country_news(country):
         print(f"!! RSS failed for {country}: {e}")
         return []
 
-================================================================================
-FILE: services/translation_service.py
-================================================================================
+
+===== services/translation_service.py =====
+
 import json
 import re
 from deep_translator import GoogleTranslator
@@ -2623,9 +2526,9 @@ Return ONLY JSON:
         }
     return None
 
-================================================================================
-FILE: static/css/style.css
-================================================================================
+
+===== static/css/style.css =====
+
 BASE_CSS = """
 :root {
     --bg: #0b0e14;
@@ -2845,9 +2748,9 @@ footer {
     .cat-tabs a { padding: 6px 11px; font-size: 0.8rem; }
 }
 
-================================================================================
-FILE: templates/ai_tools.html
-================================================================================
+
+===== templates/ai_tools.html =====
+
 AI_TOOLS_TEMPLATE = """<!DOCTYPE html>
 <html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
 <head>
@@ -2925,9 +2828,9 @@ AI_TOOLS_TEMPLATE = """<!DOCTYPE html>
 </footer>
 </body>
 </html>"""
-================================================================================
-FILE: templates/article.html
-================================================================================
+
+===== templates/article.html =====
+
 ARTICLE_TEMPLATE = """<!DOCTYPE html>
 <html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
 <head>
@@ -3047,9 +2950,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </body>
 </html>
 """
-================================================================================
-FILE: templates/home.html
-================================================================================
+
+===== templates/home.html =====
+
 HOME_TEMPLATE = """<!DOCTYPE html>
 <html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
 <head>
@@ -3246,9 +3149,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </body>
 </html>
 """
-================================================================================
-FILE: templates/jobs.html
-================================================================================
+
+===== templates/jobs.html =====
+
 JOBS_TEMPLATE = """<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -3360,23 +3263,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </body>
 </html>
 """
-================================================================================
-FILE: utils/__init__.py
-================================================================================
 
-================================================================================
-FILE: utils/__pycache__/__init__.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
+===== utils/__init__.py =====
 
-================================================================================
-FILE: utils/__pycache__/seo_helpers.cpython-313.pyc
-================================================================================
-[BINARY FILE — not included in text bundle]
 
-================================================================================
-FILE: utils/seo_helpers.py
-================================================================================
+
+===== utils/seo_helpers.py =====
+
 import urllib.parse
 from config.settings import SITE_URL
 
@@ -3399,3 +3292,4 @@ def article_path(article_id, country, lang):
         f"?country={urllib.parse.quote(country)}"
         f"&lang={urllib.parse.quote(lang)}"
     )
+

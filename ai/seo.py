@@ -1,5 +1,6 @@
 import json
 import re
+import feedparser
 from config.countries import COUNTRIES
 from config.settings import SEO_RESEARCH_ENABLED, TRENDING_LIMIT, SEO_MIN_SCORE, QUALITY_MIN_SCORE
 from ai.groq_news import generate_with_groq_compound
@@ -20,6 +21,21 @@ def _clean_json(raw):
         return json.loads(text)
     except Exception:
         return None
+
+def get_google_trends(country):
+    geo = COUNTRIES.get(country, COUNTRIES["ma"]).get("google_news", "MA")
+    url = f"https://trends.google.com/trending/rss?geo={geo}"
+    try:
+        feed = feedparser.parse(url)
+        items = []
+        for entry in feed.entries[:TRENDING_LIMIT]:
+            title = (entry.get("title") or "").strip()
+            if title:
+                items.append(title)
+        return items
+    except Exception as e:
+        print(f"!! Google Trends RSS failed for {country}: {e}")
+        return []
 
 def trend_score_heuristic(news_item, trend_terms):
     title = (news_item.get("title") or "").lower()

@@ -1,3 +1,5 @@
+import json
+import hashlib
 from database.connection import get_db_connection
 
 def _extract_jobs_json(raw_text):

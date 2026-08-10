@@ -12,6 +12,7 @@ from services.translation_service import looks_like_lang, safe_translate
 from ai.seo import build_schema
 from utils.seo_helpers import absolute_url, article_path, seo_description
 
+@app.route("/article/<int:article_id>")
 def article_detail(article_id):
     country = request.args.get("country")
     if country not in COUNTRIES:

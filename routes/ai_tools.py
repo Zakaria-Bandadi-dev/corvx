@@ -9,6 +9,7 @@ from services.country_detection import detect_country, detect_language
 from services.translation_service import looks_like_lang, safe_translate
 from utils.seo_helpers import absolute_url
 
+@app.route("/ai-tools")
 def ai_tools_page():
     country = request.args.get("country")
     if country not in COUNTRIES:

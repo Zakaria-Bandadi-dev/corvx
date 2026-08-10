@@ -1,8 +1,9 @@
 import json
 import re
 from config.countries import COUNTRIES
-from config.settings import SEO_MIN_SCORE, QUALITY_MIN_SCORE
+from config.settings import SEO_MIN_SCORE, QUALITY_MIN_SCORE, SEO_RESEARCH_ENABLED
 from ai.groq_news import generate_with_groq, generate_with_groq_compound
+from ai.seo import _clean_json, seo_score_local
 from utils.seo_helpers import seo_description
 
 def generate_article(news_item, country, seo_plan=None, verification=None):

@@ -5,7 +5,7 @@ from config.countries import COUNTRIES
 from config.settings import ARTICLES_PER_COUNTRY, TREND_MIN_SCORE, QUALITY_MIN_SCORE
 from services.news_service import get_country_news
 from services.translation_service import translate_article
-from ai.seo import analyze_trend_and_seo, research_story
+from ai.seo import analyze_trend_and_seo, research_story, get_google_trends
 from ai.article_generator import generate_article, quality_check, optimize_article
 from database.articles import article_exists, save_article
 

@@ -5,6 +5,7 @@ from config.settings import GA_ID, ADSENSE_CLIENT, JOBS_ROBOT_INTERVAL_HOURS
 from database.connection import get_db_connection
 from robots.jobs_robot import jobs_robot_status, run_jobs_robot
 
+@app.route("/jobs")
 def jobs_page():
     category = request.args.get("category")
     if category not in JOB_SITES:
@@ -58,6 +59,7 @@ def jobs_page():
     )
 
 
+@app.route("/jobs-status")
 def jobs_status_json():
     data = dict(jobs_robot_status)
     data["last_run_start"] = jobs_robot_status["last_run_start"].isoformat() if jobs_robot_status["last_run_start"] else None
@@ -65,6 +67,7 @@ def jobs_status_json():
     return jsonify(data)
 
 
+@app.route("/run-jobs-robot")
 def manual_jobs_robot():
     run_jobs_robot()
     return """
