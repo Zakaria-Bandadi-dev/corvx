@@ -37,7 +37,7 @@ JOB_GROQ_KEYS = GROQ_KEYS[2:5] if len(GROQ_KEYS) > 2 else GROQ_KEYS
 # upgrade to a paid plan.
 GROQ_MODEL = "openai/gpt-oss-120b"
 
-ROBOT_INTERVAL_HOURS = 6
+ROBOT_INTERVAL_HOURS = 24
 
 # ============================================================
 # AI SEO / TREND AUTOMATION SETTINGS
@@ -51,7 +51,7 @@ TRENDING_LIMIT = int(os.getenv("TRENDING_LIMIT", "30"))
 MAX_RESEARCH_ITEMS = int(os.getenv("MAX_RESEARCH_ITEMS", "8"))
 
 # Number of articles per country when robot runs
-ARTICLES_PER_COUNTRY = 5
+ARTICLES_PER_COUNTRY = 1
 
 # ============================================================
 # JOBS ROBOT SETTINGS
