@@ -170,6 +170,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <header class="site-header">
     <div class="logo notranslate" translate="no">Corvx NEWS</div>
 
+    <input type="checkbox" id="nav-toggle" class="nav-toggle-input" hidden>
+    <label for="nav-toggle" class="nav-toggle-btn" aria-label="Menu">
+        <span></span><span></span><span></span>
+    </label>
+    <label for="nav-toggle" class="nav-overlay" aria-hidden="true"></label>
+
     <div class="controls">
         <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">{{ t.jobs_link }}</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">{{ t.ai_tools_link }}</a>
