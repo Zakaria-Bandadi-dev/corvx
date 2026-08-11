@@ -1,5 +1,6 @@
 import json
 import re
+import urllib.parse
 import feedparser
 from config.countries import COUNTRIES
 from config.settings import SEO_RESEARCH_ENABLED, TRENDING_LIMIT, SEO_MIN_SCORE, QUALITY_MIN_SCORE
