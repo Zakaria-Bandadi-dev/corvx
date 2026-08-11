@@ -8,7 +8,7 @@ def absolute_url(path="/"):
 
 def seo_description(text, max_length=160):
     if not text:
-        return "Corvx News — Latest international news and updates."
+        return "Corvex News — Latest international news and updates."
     clean = " ".join(str(text).split())
     if len(clean) <= max_length:
         return clean
