@@ -184,6 +184,11 @@ def build_schema(article_id, country, lang, article, faq):
                 for x in faq if x.get("question") and x.get("answer")
             ]
         })
+    print("DEBUG article_id:", article_id)
+    print("DEBUG country:", repr(article["country"]))
+    print("DEBUG country type:", type(article["country"]))
+    print("DEBUG lang:", repr(lang))
+    print("DEBUG lang type:", type(lang))
     return {"@context": "https://schema.org", "@graph": graph}
 
 def build_website_schema():
