@@ -38,7 +38,7 @@
           type="image/png"
           href="{{ url_for('static', filename='logo.png') }}">
 
-    <title>Corvx News — {{ country_name }}</title>
+    <title>Corvex News — {{ country_name }}</title>
 
     <meta name="description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -53,13 +53,13 @@
     {% endfor %}
 
     <meta property="og:site_name"
-          content="Corvx News">
+          content="Corvex News">
 
     <meta property="og:type"
           content="website">
 
     <meta property="og:title"
-          content="Corvx News — {{ country_name }}">
+          content="Corvex News — {{ country_name }}">
 
     <meta property="og:description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -71,7 +71,7 @@
           content="summary">
 
     <meta name="twitter:title"
-          content="Corvx News — {{ country_name }}">
+          content="Corvex News — {{ country_name }}">
 
     <meta name="twitter:description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -90,76 +90,11 @@
             {{ website_schema | tojson }}
         </script>
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 
 </head>
 <body>
-
-{# =========================================================
-   UI STRINGS — everything here is interface "chrome" text,
-   NOT article content. Translated by current_language.
-   To add a 5th language: add one more key to this dict.
-   ========================================================= #}
-{% set ui_strings = {
-    'en': {
-        'jobs_link':        'Jobs',
-        'ai_tools_link':    'AI Tools',
-        'hero_title':       'Latest News — ' ~ country_name,
-        'hero_sub':         'News selected for your country and language.',
-        'read_more':        'Read article →',
-        'news_category':    'News',
-        'no_news_title':    'No news yet',
-        'no_news_sub':      'Collecting the latest news for ' ~ country_name ~ '. Check back in a few minutes.',
-        'ai_section_title': 'AI Tools',
-        'ai_section_sub':   'Latest artificial intelligence tools and updates.',
-        'ai_category':      'Artificial Intelligence',
-        'footer':           '© 2026 Corvx News.'
-    },
-    'ar': {
-        'jobs_link':        'الخدمة',
-        'ai_tools_link':    'أدوات الذكاء الاصطناعي',
-        'hero_title':       'آخر الأخبار — ' ~ country_name,
-        'hero_sub':         'أخبار مختارة حسب بلدك ولغتك.',
-        'read_more':        'اقرأ المقال ←',
-        'news_category':    'أخبار',
-        'no_news_title':    'مازال ماكاين أخبار',
-        'no_news_sub':      'كنجمعو آخر الأخبار ديال ' ~ country_name ~ '. عاود جرب من بعد شوية.',
-        'ai_section_title': 'أدوات الذكاء الاصطناعي',
-        'ai_section_sub':   'آخر أدوات وتحديثات الذكاء الاصطناعي.',
-        'ai_category':      'ذكاء اصطناعي',
-        'footer':           '© 2026 كورفكس نيوز.'
-    },
-    'fr': {
-        'jobs_link':        'Emplois',
-        'ai_tools_link':    'Outils IA',
-        'hero_title':       'Dernières actualités — ' ~ country_name,
-        'hero_sub':         'Actualités sélectionnées selon votre pays et votre langue.',
-        'read_more':        'Lire l\'article →',
-        'news_category':    'Actualité',
-        'no_news_title':    'Aucune actualité pour le moment',
-        'no_news_sub':      'Nous rassemblons les dernières actualités pour ' ~ country_name ~ '. Revenez dans quelques minutes.',
-        'ai_section_title': 'Outils IA',
-        'ai_section_sub':   'Derniers outils et mises à jour en intelligence artificielle.',
-        'ai_category':      'Intelligence artificielle',
-        'footer':           '© 2026 Corvx News.'
-    },
-    'es': {
-        'jobs_link':        'Empleos',
-        'ai_tools_link':    'Herramientas IA',
-        'hero_title':       'Últimas noticias — ' ~ country_name,
-        'hero_sub':         'Noticias seleccionadas según tu país y tu idioma.',
-        'read_more':        'Leer artículo →',
-        'news_category':    'Noticias',
-        'no_news_title':    'Todavía no hay noticias',
-        'no_news_sub':      'Estamos recopilando las últimas noticias de ' ~ country_name ~ '. Vuelve en unos minutos.',
-        'ai_section_title': 'Herramientas IA',
-        'ai_section_sub':   'Últimas herramientas y novedades en inteligencia artificial.',
-        'ai_category':      'Inteligencia artificial',
-        'footer':           '© 2026 Corvx News.'
-    }
-} %}
-{% set t = ui_strings.get(current_language, ui_strings['en']) %}
-
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -168,17 +103,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         data-ad-client="ca-pub-6569442856013984">
 </amp-auto-ads>
 <header class="site-header">
-    <div class="logo notranslate" translate="no">Corvx NEWS</div>
-
-    <input type="checkbox" id="nav-toggle" class="nav-toggle-input" hidden>
-    <label for="nav-toggle" class="nav-toggle-btn" aria-label="Menu">
-        <span></span><span></span><span></span>
-    </label>
-    <label for="nav-toggle" class="nav-overlay" aria-hidden="true"></label>
+    <div class="logo notranslate" translate="no">CORVEX NEWS</div>
 
     <div class="controls">
-        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">{{ t.jobs_link }}</a>
-        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">{{ t.ai_tools_link }}</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
         <form method="get">
             <input type="hidden" name="country" value="{{ current_country }}">
             <select name="lang" onchange="this.form.submit()">
@@ -202,8 +130,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <main>
 
     <div class="hero">
-        <h1>{{ t.hero_title }}</h1>
-        <p>{{ t.hero_sub }}</p>
+        <h1>Latest News — {{ country_name }}</h1>
+        <p>News selected for your country and language.</p>
     </div>
     {% if articles %}
         <div class="grid">
@@ -213,11 +141,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
                 {% endif %}
                 <div class="card-content">
-                    <span class="category">{{ article.category or t.news_category }}</span>
+                    <span class="category">{{ article.category or "News" }}</span>
                     <h2>{{ article.title }}</h2>
                     <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
-                    <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
-                        {{ t.read_more }}
+                    <a class="read" href="{{ url_for('news.article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
+                        Read article &rarr;
                     </a>
                 </div>
             </article>
@@ -225,42 +153,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
     {% else %}
         <div class="no-news">
-            <h2><span class="robot-dot"></span> {{ t.no_news_title }}</h2>
-            <p>{{ t.no_news_sub }}</p>
+            <h2><span class="robot-dot"></span> No news yet</h2>
+            <p>Collecting the latest news for {{ country_name }}. Check back in a few minutes.</p>
         </div>
-    {% endif %}
-
-    {% if ai_tools_articles %}
-        <section class="ai-tools-section" style="margin-top: 40px;">
-            <div class="hero">
-                <h2>{{ t.ai_section_title }}</h2>
-                <p>{{ t.ai_section_sub }}</p>
-            </div>
-
-            <div class="grid">
-            {% for article in ai_tools_articles %}
-                <article class="card">
-                    {% if article.image %}
-                        <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
-                    {% endif %}
-                    <div class="card-content">
-                        <span class="category">{{ article.category or t.ai_category }}</span>
-                        <h2>{{ article.title }}</h2>
-                        <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
-                        <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
-                            {{ t.read_more }}
-                        </a>
-                    </div>
-                </article>
-            {% endfor %}
-            </div>
-        </section>
     {% endif %}
 
 </main>
 
 <footer>
-    {{ t.footer }}
+    &copy; {{ 2026 }} Corvex News.
 </footer>
 
 </body>

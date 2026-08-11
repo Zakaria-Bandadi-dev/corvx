@@ -10,7 +10,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-5HWZM8XR');</script>
 <!-- End Google Tag Manager -->
-<title>{{ article.seo_title or article.title }} — Corvx News</title>
+<title>{{ article.seo_title or article.title }} — Corvex News</title>
 <meta name="description" content="{{ article.meta_description or seo_description(article.content) }}">
 <meta name="keywords" content="{{ article.primary_keyword }}{% if article.secondary_keywords %}, {{ article.secondary_keywords }}{% endif %}">
 <link rel="canonical" href="{{ canonical_url }}">
@@ -19,7 +19,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <link rel="alternate" hreflang="{{ code }}" href="{{ url }}">
 {% endfor %}
 
-<meta property="og:site_name" content="Corvx News">
+<meta property="og:site_name" content="Corvex News">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{{ article.seo_title or article.title }}">
 <meta property="og:description" content="{{ article.meta_description or seo_description(article.content) }}">
@@ -46,7 +46,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 {% if article.schema %}
 <script type="application/ld+json">{{ article.schema | tojson }}</script>
 {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 </head>
 <body>
 <!-- Google Tag Manager (noscript) -->
@@ -54,13 +55,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
 <header class="site-header">
-    <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">Corvx NEWS</a>
+    <a class="logo notranslate" translate="no" href="{{ url_for('news.home', country=current_country, lang=current_language) }}">CORVEX NEWS</a>
 </header>
 
 <main>
     <div class="article-header">
 
-        <a class="back" href="{{ url_for('home', country=current_country, lang=current_language) }}">&larr; Back to news</a>
+        <a class="back" href="{{ url_for('news.home', country=current_country, lang=current_language) }}">&larr; Back to news</a>
 
         {% if article.image %}
             <img src="{{ article.image }}" alt="{{ article.title }}">
@@ -77,7 +78,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <h2>Related News</h2>
             <ul>
             {% for related in article.related %}
-                <li><a href="{{ url_for('article_detail', article_id=related.id, country=current_country, lang=current_language) }}">{{ related.title }}</a></li>
+                <li><a href="{{ url_for('news.article_detail', article_id=related.id, country=current_country, lang=current_language) }}">{{ related.title }}</a></li>
             {% endfor %}
             </ul>
         </section>
@@ -112,7 +113,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvx News.
+    &copy; {{ 2026 }} Corvex News.
 </footer>
 </body>
 </html>
