@@ -1,7 +1,7 @@
 Flask
-psycopg[binary]
 feedparser
 requests
+psycopg
 groq
 APScheduler
 deep-translator

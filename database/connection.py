@@ -1,7 +1,5 @@
 import psycopg
-
 from config.settings import DATABASE_URL
-
 
 def get_db_connection():
     if not DATABASE_URL:

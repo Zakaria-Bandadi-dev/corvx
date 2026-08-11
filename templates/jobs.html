@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+JOBS_TEMPLATE = """<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>عروض الخدمة — Corvex News</title>
+<title>عروض الخدمة — Corvx News</title>
 <meta name="description" content="آخر عروض الخدمة فالمغرب، الخليج، وأوروبا وكندا.">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
 
@@ -22,8 +22,7 @@
 <script async src="[https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=](https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=){{ adsense_client }}"
  crossorigin="anonymous"></script>
 {% endif %}
-
-<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 <!-- Google Tag Manager (noscript) -->
@@ -31,8 +30,8 @@
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
 <header class="site-header">
-    <a class="logo notranslate" translate="no" href="{{ url_for('news.home') }}">CORVEX NEWS</a>
-    <a href="{{ url_for('news.home') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الأخبار</a>
+    <a class="logo notranslate" translate="no" href="{{ url_for('home') }}">Corvx NEWS</a>
+    <a href="{{ url_for('home') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الأخبار</a>
 </header>
 
 <main>
@@ -42,9 +41,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="cat-tabs">
-        <a href="{{ url_for('jobs.jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
+        <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
         {% for code, info in job_categories.items() %}
-            <a href="{{ url_for('jobs.jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
+            <a href="{{ url_for('jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
         {% endfor %}
     </div>
 
@@ -104,8 +103,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvex News.
+    &copy; {{ 2026 }} Corvx News.
 </footer>
 
 </body>
 </html>
+"""
