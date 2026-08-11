@@ -1,5 +1,6 @@
 import json
 import re
+import urllib.parse
 import feedparser
 from config.countries import COUNTRIES
 from config.settings import SEO_RESEARCH_ENABLED, TRENDING_LIMIT, SEO_MIN_SCORE, QUALITY_MIN_SCORE
@@ -184,14 +185,6 @@ def build_schema(article_id, country, lang, article, faq):
                 for x in faq if x.get("question") and x.get("answer")
             ]
         })
-    print("DEBUG article_id:", article_id)
-    print("DEBUG country:", repr(article["country"]))
-    print("DEBUG country type:", type(article["country"]))
-    print("DEBUG lang:", repr(lang))
-    print("DEBUG lang type:", type(lang))
-    encoded_country = urllib.parse.quote(str(country))
-    encoded_lang = urllib.parse.quote(str(lang))
-
     return {"@context": "https://schema.org", "@graph": graph}
 
 def build_website_schema():
