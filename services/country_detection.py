@@ -26,7 +26,7 @@ def detect_country():
         except Exception:
             pass
 
-        response = requests.get(f"[https://ipapi.co/](https://ipapi.co/){ip}/json/", timeout=3)
+        response = requests.get(f"https://ipapi.co/{ip}/json/", timeout=3)
         if response.ok:
             data = response.json()
             country_code = data.get("country_code", "").lower()
