@@ -49,6 +49,9 @@ def sitemap_xml():
                 )
             )
 
+    # Jobs page.
+    urls.append(absolute_url("/jobs"))
+
     # Article URLs.
     rows = fetch_sitemap_rows()
     for article_id, country_code, created_at in rows:

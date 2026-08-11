@@ -34,6 +34,9 @@ def sitemap_xml():
                 )
             )
 
+    # Jobs page.
+    urls.append(absolute_url("/jobs"))
+
     # Article URLs.
     try:
         conn = get_db_connection()
