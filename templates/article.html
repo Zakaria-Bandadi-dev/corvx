@@ -80,6 +80,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 {# ==================== UI TRANSLATIONS ==================== #}
 {% set translations = {
     'en': {
+        'logo_text': 'Corvx NEWS',
         'back_to_news': 'Back to news', 'arrow': '←',
         'related_news': 'Related News',
         'faq': 'Frequently Asked Questions',
@@ -88,6 +89,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         'view_source': 'View original source'
     },
     'fr': {
+        'logo_text': 'Corvx NEWS',
         'back_to_news': 'Retour aux actualités', 'arrow': '←',
         'related_news': 'Actualités connexes',
         'faq': 'Questions fréquentes',
@@ -96,6 +98,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         'view_source': 'Voir la source originale'
     },
     'ar': {
+        'logo_text': 'كورفكس نيوز',
         'back_to_news': 'العودة للأخبار', 'arrow': '→',
         'related_news': 'أخبار ذات صلة',
         'faq': 'الأسئلة الشائعة',
@@ -104,6 +107,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         'view_source': 'عرض المصدر الأصلي'
     },
     'es': {
+        'logo_text': 'Corvx NEWS',
         'back_to_news': 'Volver a noticias', 'arrow': '←',
         'related_news': 'Noticias relacionadas',
         'faq': 'Preguntas frecuentes',
@@ -116,7 +120,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 {# ============================================================ #}
 
 <header class="site-header">
-    <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">Corvx NEWS</a>
+   <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">
+    {{ t.logo_text }}
+  </a>
 
     <a class="back header-back" href="{{ url_for('home', country=current_country, lang=current_language) }}">
         <span class="back-arrow">{{ t.arrow }}</span>
@@ -177,7 +183,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvx News.
+    &copy; {{ 2026 }} <div class="logo notranslate" translate="no">
+    <span class="logo-dot"></span>
+    {{ t.logo_text }}
+</div>
 </footer>
 </body>
 </html>
