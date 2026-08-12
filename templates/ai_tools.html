@@ -14,6 +14,7 @@
 {# ==================== UI TRANSLATIONS ==================== #}
 {% set translations = {
     'en': {
+        'logo_text': 'Corvx NEWS',
         'home': 'Home', 'jobs': 'Jobs', 'ai_tools': 'AI Tools',
         'menu': 'Menu', 'language': 'Language', 'country': 'Country',
         'ai_tools_title': 'AI Tools',
@@ -24,6 +25,7 @@
         'no_ai_sub': 'There are no artificial intelligence articles available yet.'
     },
     'fr': {
+        'logo_text': 'Corvx NEWS',
         'home': 'Accueil', 'jobs': 'Emplois', 'ai_tools': 'Outils IA',
         'menu': 'Menu', 'language': 'Langue', 'country': 'Pays',
         'ai_tools_title': 'Outils IA',
@@ -34,6 +36,7 @@
         'no_ai_sub': "Aucun article sur l'intelligence artificielle n'est disponible pour le moment."
     },
     'ar': {
+        'logo_text': 'كورفكس نيوز',
         'home': 'الرئيسية', 'jobs': 'الوظائف', 'ai_tools': 'أدوات الذكاء الاصطناعي',
         'menu': 'القائمة', 'language': 'اللغة', 'country': 'الدولة',
         'ai_tools_title': 'أدوات الذكاء الاصطناعي',
@@ -44,6 +47,7 @@
         'no_ai_sub': 'لا توجد مقالات عن الذكاء الاصطناعي متاحة حاليًا.'
     },
     'es': {
+        'logo_text': 'Corvx NEWS',
         'home': 'Inicio', 'jobs': 'Empleos', 'ai_tools': 'Herramientas de IA',
         'menu': 'Menú', 'language': 'Idioma', 'country': 'País',
         'ai_tools_title': 'Herramientas de IA',
@@ -63,7 +67,7 @@
 <header class="site-header">
     <div class="logo notranslate" translate="no">
         <span class="logo-dot"></span>
-        Corvx NEWS
+        {{ t.logo_text }}
     </div>
 
     <div class="header-right">
@@ -160,7 +164,10 @@
 </main>
 
 <footer>
-    &copy; {{ current_language|upper }} Corvx News
+    &copy; {{ current_language|upper }} <div class="logo notranslate" translate="no">
+    <span class="logo-dot"></span>
+    {{ t.logo_text }}
+</div>
 </footer>
 </body>
 </html>
