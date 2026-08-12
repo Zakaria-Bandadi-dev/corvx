@@ -102,6 +102,56 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         data-ad-client="ca-pub-6569442856013984">
 </amp-auto-ads>
 
+{# ==================== UI TRANSLATIONS ==================== #}
+{% set translations = {
+    'en': {
+        'home': 'Home', 'jobs': 'Jobs', 'ai_tools': 'AI Tools',
+        'menu': 'Menu', 'language': 'Language', 'country': 'Country',
+        'latest_news': 'Latest News', 'news_sub': 'News selected for your country and language.',
+        'read_article': 'Read article', 'arrow': '→',
+        'no_news_title': 'No news yet',
+        'no_news_sub': 'Collecting the latest news for {country}. Check back in a few minutes.',
+        'ai_tools_title': 'AI Tools',
+        'ai_tools_sub': 'Latest artificial intelligence tools and updates.',
+        'ai_category': 'Artificial Intelligence'
+    },
+    'fr': {
+        'home': 'Accueil', 'jobs': 'Emplois', 'ai_tools': 'Outils IA',
+        'menu': 'Menu', 'language': 'Langue', 'country': 'Pays',
+        'latest_news': 'Dernières actualités', 'news_sub': 'Actualités sélectionnées selon votre pays et votre langue.',
+        'read_article': "Lire l'article", 'arrow': '→',
+        'no_news_title': 'Aucune actualité pour le moment',
+        'no_news_sub': 'Collecte des dernières actualités pour {country}. Revenez dans quelques minutes.',
+        'ai_tools_title': 'Outils IA',
+        'ai_tools_sub': "Derniers outils et actualités en intelligence artificielle.",
+        'ai_category': 'Intelligence Artificielle'
+    },
+    'ar': {
+        'home': 'الرئيسية', 'jobs': 'الوظائف', 'ai_tools': 'أدوات الذكاء الاصطناعي',
+        'menu': 'القائمة', 'language': 'اللغة', 'country': 'الدولة',
+        'latest_news': 'آخر الأخبار', 'news_sub': 'أخبار مختارة حسب دولتك ولغتك.',
+        'read_article': 'قراءة المقال', 'arrow': '←',
+        'no_news_title': 'لا توجد أخبار بعد',
+        'no_news_sub': 'جاري جمع آخر الأخبار لـ {country}. تحقق مرة أخرى بعد قليل.',
+        'ai_tools_title': 'أدوات الذكاء الاصطناعي',
+        'ai_tools_sub': 'آخر أدوات وتحديثات الذكاء الاصطناعي.',
+        'ai_category': 'الذكاء الاصطناعي'
+    },
+    'es': {
+        'home': 'Inicio', 'jobs': 'Empleos', 'ai_tools': 'Herramientas de IA',
+        'menu': 'Menú', 'language': 'Idioma', 'country': 'País',
+        'latest_news': 'Últimas noticias', 'news_sub': 'Noticias seleccionadas según tu país y tu idioma.',
+        'read_article': 'Leer artículo', 'arrow': '→',
+        'no_news_title': 'Aún no hay noticias',
+        'no_news_sub': 'Recopilando las últimas noticias de {country}. Vuelve a consultar en unos minutos.',
+        'ai_tools_title': 'Herramientas de IA',
+        'ai_tools_sub': 'Últimas herramientas y novedades de inteligencia artificial.',
+        'ai_category': 'Inteligencia Artificial'
+    }
+} %}
+{% set t = translations.get(current_language, translations['en']) %}
+{# ============================================================ #}
+
 <!-- hidden checkbox: drives the hamburger + drawer, no JS needed -->
 <input type="checkbox" id="nav-toggle" class="nav-toggle">
 
@@ -112,8 +162,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="header-right">
-        <a href="{{ url_for('jobs_page') }}" class="header-link">الخدمة / Jobs</a>
-        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">AI Tools</a>
+        <a href="{{ url_for('jobs_page') }}" class="header-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">{{ t.ai_tools }}</a>
 
         <!-- hamburger icon: toggles #nav-toggle, side flips automatically in RTL -->
         <label for="nav-toggle" class="hamburger" aria-label="Menu">
@@ -140,13 +190,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="drawer-section">
-        <span class="drawer-label">Menu</span>
-        <a href="{{ url_for('jobs_page') }}" class="drawer-link">الخدمة / Jobs</a>
-        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">AI Tools</a>
+        <span class="drawer-label">{{ t.menu }}</span>
+        <a href="{{ url_for('jobs_page') }}" class="drawer-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.ai_tools }}</a>
     </div>
 
     <div class="drawer-section">
-        <span class="drawer-label">Language</span>
+        <span class="drawer-label">{{ t.language }}</span>
         <form method="get">
             <input type="hidden" name="country" value="{{ current_country }}">
             <select name="lang" onchange="this.form.submit()">
@@ -158,7 +208,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="drawer-section">
-        <span class="drawer-label">Country</span>
+        <span class="drawer-label">{{ t.country }}</span>
         <form method="get">
             <input type="hidden" name="lang" value="{{ current_language }}">
             <select name="country" onchange="this.form.submit()">
@@ -173,8 +223,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <main>
 
     <div class="hero">
-        <h1>Latest News — {{ country_name }}</h1>
-        <p>News selected for your country and language.</p>
+        <h1>{{ t.latest_news }} — {{ country_name }}</h1>
+        <p>{{ t.news_sub }}</p>
     </div>
     {% if articles %}
         <div class="grid">
@@ -188,7 +238,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <h2>{{ article.title }}</h2>
                     <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
                     <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
-                        Read article &rarr;
+                        {{ t.read_article }} {{ t.arrow }}
                     </a>
                 </div>
             </article>
@@ -196,16 +246,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
     {% else %}
         <div class="no-news">
-            <h2><span class="robot-dot"></span> No news yet</h2>
-            <p>Collecting the latest news for {{ country_name }}. Check back in a few minutes.</p>
+            <h2><span class="robot-dot"></span> {{ t.no_news_title }}</h2>
+            <p>{{ t.no_news_sub.replace('{country}', country_name) }}</p>
         </div>
     {% endif %}
 
     {% if ai_tools_articles %}
         <section class="ai-tools-section" style="margin-top: 40px;">
             <div class="hero">
-                <h2>AI Tools</h2>
-                <p>Latest artificial intelligence tools and updates.</p>
+                <h2>{{ t.ai_tools_title }}</h2>
+                <p>{{ t.ai_tools_sub }}</p>
             </div>
 
             <div class="grid">
@@ -215,11 +265,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
                     {% endif %}
                     <div class="card-content">
-                        <span class="category">{{ article.category or "Artificial Intelligence" }}</span>
+                        <span class="category">{{ article.category or t.ai_category }}</span>
                         <h2>{{ article.title }}</h2>
                         <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
                         <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
-                            Read article &rarr;
+                            {{ t.read_article }} {{ t.arrow }}
                         </a>
                     </div>
                 </article>
