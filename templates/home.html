@@ -38,7 +38,7 @@
           type="image/png"
           href="{{ url_for('static', filename='logo.png') }}">
 
-    <title>Corvex News — {{ country_name }}</title>
+    <title>Corvx News — {{ country_name }}</title>
 
     <meta name="description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -53,13 +53,13 @@
     {% endfor %}
 
     <meta property="og:site_name"
-          content="Corvex News">
+          content="Corvx News">
 
     <meta property="og:type"
           content="website">
 
     <meta property="og:title"
-          content="Corvex News — {{ country_name }}">
+          content="Corvx News — {{ country_name }}">
 
     <meta property="og:description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -71,7 +71,7 @@
           content="summary">
 
     <meta name="twitter:title"
-          content="Corvex News — {{ country_name }}">
+          content="Corvx News — {{ country_name }}">
 
     <meta name="twitter:description"
           content="{{ seo_description(country_name ~ ' latest news') }}">
@@ -90,8 +90,7 @@
             {{ website_schema | tojson }}
         </script>
     {% endif %}
-
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
 </head>
 <body>
@@ -102,12 +101,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <amp-auto-ads type="adsense"
         data-ad-client="ca-pub-6569442856013984">
 </amp-auto-ads>
-<header class="site-header">
-    <div class="logo notranslate" translate="no">CORVEX NEWS</div>
+<input type="checkbox" id="mobile-nav-toggle" class="nav-toggle" aria-label="Toggle navigation">
+<div class="nav-backdrop" aria-hidden="true" onclick="document.getElementById('mobile-nav-toggle').checked = false;"></div>
 
-    <div class="controls">
-        <a href="{{ url_for('jobs.jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
-        <form method="get">
+<aside class="drawer" aria-label="Main menu">
+    <div class="drawer-top">
+        <div class="logo notranslate" translate="no">Corvx NEWS</div>
+        <label for="mobile-nav-toggle" class="drawer-close" aria-label="Close menu">✕</label>
+    </div>
+
+    <div class="drawer-section">
+        <div class="drawer-label">Navigation</div>
+        <a class="drawer-link" href="{{ url_for('jobs_page') }}">الخدمة / Jobs</a>
+        <a class="drawer-link" href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}">AI Tools</a>
+    </div>
+
+    <div class="drawer-section">
+        <div class="drawer-label">Language</div>
+        <form method="get" class="drawer-form">
             <input type="hidden" name="country" value="{{ current_country }}">
             <select name="lang" onchange="this.form.submit()">
                 {% for code, name in languages.items() %}
@@ -115,8 +126,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 {% endfor %}
             </select>
         </form>
+    </div>
 
-        <form method="get">
+    <div class="drawer-section">
+        <div class="drawer-label">Country</div>
+        <form method="get" class="drawer-form">
             <input type="hidden" name="lang" value="{{ current_language }}">
             <select name="country" onchange="this.form.submit()">
                 {% for code, info in countries.items() %}
@@ -124,6 +138,42 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 {% endfor %}
             </select>
         </form>
+    </div>
+</aside>
+
+<header class="site-header">
+    <div class="logo notranslate" translate="no">Corvx NEWS</div>
+
+    <div class="header-right">
+        <div class="controls">
+            <a class="header-link" href="{{ url_for('jobs_page') }}">الخدمة / Jobs</a>
+            <a class="header-link" href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}">AI Tools</a>
+            <form method="get">
+                <input type="hidden" name="country" value="{{ current_country }}">
+                <select name="lang" onchange="this.form.submit()">
+                    {% for code, name in languages.items() %}
+                    <option value="{{ code }}" {% if code == current_language %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <form method="get">
+                <input type="hidden" name="lang" value="{{ current_language }}">
+                <select name="country" onchange="this.form.submit()">
+                    {% for code, info in countries.items() %}
+                    <option value="{{ code }}" {% if code == current_country %}selected{% endif %}>{{ info.native }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        <label for="mobile-nav-toggle" class="hamburger" aria-label="Open menu">
+            <span class="bars">
+                <span></span>
+                <span></span>
+                <span></span>
+            </span>
+        </label>
     </div>
 </header>
 
@@ -144,7 +194,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <span class="category">{{ article.category or "News" }}</span>
                     <h2>{{ article.title }}</h2>
                     <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
-                    <a class="read" href="{{ url_for('news.article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
+                    <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
                         Read article &rarr;
                     </a>
                 </div>
@@ -158,10 +208,37 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
     {% endif %}
 
+    {% if ai_tools_articles %}
+        <section class="ai-tools-section" style="margin-top: 40px;">
+            <div class="hero">
+                <h2>AI Tools</h2>
+                <p>Latest artificial intelligence tools and updates.</p>
+            </div>
+
+            <div class="grid">
+            {% for article in ai_tools_articles %}
+                <article class="card">
+                    {% if article.image %}
+                        <img src="{{ article.image }}" alt="{{ article.title }}" loading="lazy">
+                    {% endif %}
+                    <div class="card-content">
+                        <span class="category">{{ article.category or "Artificial Intelligence" }}</span>
+                        <h2>{{ article.title }}</h2>
+                        <p>{{ article.content[:240] }}{% if article.content|length > 240 %}...{% endif %}</p>
+                        <a class="read" href="{{ url_for('article_detail', article_id=article.id, country=current_country, lang=current_language) }}">
+                            Read article &rarr;
+                        </a>
+                    </div>
+                </article>
+            {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
 </main>
 
 <footer>
-    &copy; {{ 2026 }} Corvex News.
+    &copy; {{ 2026 }} Corvx News.
 </footer>
 
 </body>
