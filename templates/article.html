@@ -30,7 +30,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <meta name="twitter:description" content="{{ article.meta_description or seo_description(article.content) }}">
 
 {% if ga_id %}
-<script async src="[https://www.googletagmanager.com/gtag/js?id=](https://www.googletagmanager.com/gtag/js?id=){{ ga_id }}"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -40,7 +40,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 {% endif %}
 
 {% if adsense_client %}
-<script async src="[https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=](https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=){{ adsense_client }}"
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
  crossorigin="anonymous"></script>
 {% endif %}
 {% if article.schema %}
@@ -53,14 +53,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
+
+{% set back_labels = {
+    'ar': 'العودة للأخبار',
+    'fr': 'Retour aux actualités',
+    'en': 'Back to news',
+    'es': 'Volver a noticias'
+} %}
+{% set back_text = back_labels.get(current_language, back_labels['en']) %}
+
 <header class="site-header">
     <a class="logo notranslate" translate="no" href="{{ url_for('home', country=current_country, lang=current_language) }}">Corvx NEWS</a>
+
+    <a class="back header-back" href="{{ url_for('home', country=current_country, lang=current_language) }}">
+        <span class="back-arrow">{{ '→' if current_language == 'ar' else '←' }}</span>
+        {{ back_text }}
+    </a>
 </header>
 
 <main>
     <div class="article-header">
-
-        <a class="back" href="{{ url_for('home', country=current_country, lang=current_language) }}">&larr; Back to news</a>
 
         {% if article.image %}
             <img src="{{ article.image }}" alt="{{ article.title }}">
