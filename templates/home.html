@@ -101,12 +101,52 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <amp-auto-ads type="adsense"
         data-ad-client="ca-pub-6569442856013984">
 </amp-auto-ads>
-<header class="site-header">
-    <div class="logo notranslate" translate="no">Corvx NEWS</div>
 
-    <div class="controls">
-        <a href="{{ url_for('jobs_page') }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">الخدمة / Jobs</a>
-        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" style="align-self:center; color:var(--accent); font-weight:700; font-size:0.9rem;">AI Tools</a>
+<!-- hidden checkbox: drives the hamburger + drawer, no JS needed -->
+<input type="checkbox" id="nav-toggle" class="nav-toggle">
+
+<header class="site-header">
+    <div class="logo notranslate" translate="no">
+        <span class="logo-dot"></span>
+        Corvx NEWS
+    </div>
+
+    <div class="header-right">
+        <a href="{{ url_for('jobs_page') }}" class="header-link">الخدمة / Jobs</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">AI Tools</a>
+
+        <!-- hamburger icon: toggles #nav-toggle, side flips automatically in RTL -->
+        <label for="nav-toggle" class="hamburger" aria-label="Menu">
+            <span class="bars">
+                <span></span>
+                <span></span>
+                <span></span>
+            </span>
+        </label>
+    </div>
+</header>
+
+<!-- dark overlay behind the drawer, click to close -->
+<label for="nav-toggle" class="nav-backdrop"></label>
+
+<!-- the sliding drawer: opens from left in LTR, from right in RTL -->
+<nav class="drawer">
+    <div class="drawer-top">
+        <div class="logo notranslate" translate="no" style="font-size:1rem;">
+            <span class="logo-dot"></span>
+            Corvx NEWS
+        </div>
+        <label for="nav-toggle" class="drawer-close" aria-label="Close menu">&times;</label>
+    </div>
+
+    <div class="drawer-section">
+        <span class="drawer-label">Menu</span>
+        <a href="{{ url_for('jobs_page') }}" class="drawer-link">الخدمة / Jobs</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">AI Tools</a>
+    </div>
+
+    <div class="drawer-section">
+        <span class="drawer-label">Language</span>
         <form method="get">
             <input type="hidden" name="country" value="{{ current_country }}">
             <select name="lang" onchange="this.form.submit()">
@@ -115,7 +155,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 {% endfor %}
             </select>
         </form>
+    </div>
 
+    <div class="drawer-section">
+        <span class="drawer-label">Country</span>
         <form method="get">
             <input type="hidden" name="lang" value="{{ current_language }}">
             <select name="country" onchange="this.form.submit()">
@@ -125,7 +168,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </select>
         </form>
     </div>
-</header>
+</nav>
 
 <main>
 
