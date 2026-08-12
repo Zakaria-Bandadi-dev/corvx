@@ -40,9 +40,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="cat-tabs">
-        <a href="{{ url_for('jobs.jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
+        <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
         {% for code, info in job_categories.items() %}
-            <a href="{{ url_for('jobs.jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
+            <a href="{{ url_for('jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
         {% endfor %}
     </div>
 
@@ -63,7 +63,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 {% endif %}
 
                 <div class="job-source">
-                    <a href="{{ url_for('jobs.job_detail', offer_id=offer.id) }}">
+                    <a href="{{ url_for('job_detail', offer_id=offer.id) }}">
                         اقرأ المزيد &rarr;
                     </a>
                 </div>
