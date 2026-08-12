@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
 
 {% if ga_id %}
-<script async src="[https://www.googletagmanager.com/gtag/js?id=](https://www.googletagmanager.com/gtag/js?id=){{ ga_id }}"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -19,7 +19,7 @@
 {% endif %}
 
 {% if adsense_client %}
-<script async src="[https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=](https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=){{ adsense_client }}"
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
  crossorigin="anonymous"></script>
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -37,13 +37,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <main>
     <div class="hero">
         <h1>عروض العمل</h1>
-        
     </div>
 
     <div class="cat-tabs">
-        <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
         {% for code, info in job_categories.items() %}
-            <a href="{{ url_for('jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
+            <a href="{{ url_for('jobs.jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
         {% endfor %}
     </div>
 
@@ -59,39 +58,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
                 {% if offer.description_ar %}
                 <div class="job-block">
-                    <strong>الوصف</strong>
-                    <p>{{ offer.description_ar }}</p>
+                    <p>{{ offer.description_ar[:180] }}{% if offer.description_ar|length > 180 %}...{% endif %}</p>
                 </div>
                 {% endif %}
 
-                {% if offer.conditions_ar %}
-                <div class="job-block">
-                    <strong>الشروط</strong>
-                    <p>{{ offer.conditions_ar }}</p>
-                </div>
-                {% endif %}
-
-                {% if offer.documents_ar %}
-                <div class="job-block">
-                    <strong>الوثائق المطلوبة</strong>
-                    <p>{{ offer.documents_ar }}</p>
-                </div>
-                {% endif %}
-
-                {% if offer.how_to_apply_ar %}
-                <div class="job-block">
-                    <strong>كيفاش تدير الترشيح</strong>
-                    <p>{{ offer.how_to_apply_ar }}</p>
-                </div>
-                {% endif %}
-
-                {% if offer.source_url %}
                 <div class="job-source">
-                    <a href="{{ offer.source_url }}" target="_blank" rel="noopener noreferrer">
-                        شوف العرض الأصلي &rarr;
+                    <a href="{{ url_for('jobs.job_detail', offer_id=offer.id) }}">
+                        اقرأ المزيد &rarr;
                     </a>
                 </div>
-                {% endif %}
             </div>
         {% endfor %}
     {% else %}
