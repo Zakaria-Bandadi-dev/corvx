@@ -83,3 +83,32 @@ def fetch_job_offers(category=None, limit=60):
     except Exception as e:
         print(f"!! [JOBS] Page database error: {e}")
     return rows
+
+
+
+def fetch_job_offer_by_id(offer_id):
+    """
+    Fetch a single job offer by its id.
+    Returns a single row (same column order as fetch_job_offers)
+    or None if not found.
+    """
+    conn = get_connection()  # reuse whatever connection helper fetch_job_offers uses
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, category, source_site, source_url,
+                   title_ar, company_ar, description_ar,
+                   conditions_ar, documents_ar, how_to_apply_ar,
+                   deadline, created_at
+            FROM job_offers
+            WHERE id = %s
+            """,
+            (offer_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        return row
+    finally:
+        conn.close()
+ 
