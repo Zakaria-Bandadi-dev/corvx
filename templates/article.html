@@ -47,6 +47,29 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <script type="application/ld+json">{{ article.schema | tojson }}</script>
 {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        header.site-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        /* forced order: back always comes first on the main axis,
+           logo always second — this makes:
+           - Arabic (RTL): logo LEFT, back RIGHT
+           - Latin (LTR):  logo RIGHT, back LEFT */
+        header.site-header .header-back {
+            order: 1;
+            margin-bottom: 0;
+            font-size: 0.88rem;
+            white-space: nowrap;
+        }
+        header.site-header .logo {
+            order: 2;
+        }
+        .header-back .back-arrow {
+            display: inline-block;
+        }
+    </style>
 </head>
 <body>
 <!-- Google Tag Manager (noscript) -->
