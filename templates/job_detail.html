@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>{{ offer.title_ar }} — Corvx News</title>
+<meta name="description" content="{{ offer.description_ar[:160] if offer.description_ar else 'تفاصيل عرض الخدمة' }}">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+
+{% if ga_id %}
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ ga_id }}');
+</script>
+{% endif %}
+
+{% if adsense_client %}
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+ crossorigin="anonymous"></script>
+{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+    header.site-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    /* Arabic (RTL) page: logo stays LEFT, back stays RIGHT */
+    header.site-header .header-back {
+        order: 1;
+        margin-bottom: 0;
+        font-size: 0.88rem;
+        white-space: nowrap;
+    }
+    header.site-header .logo {
+        order: 2;
+    }
+</style>
+</head>
+<body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5HWZM8XR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+
+<header class="site-header">
+    <a class="logo notranslate" translate="no" href="{{ url_for('home') }}">Corvx NEWS</a>
+    <a class="back header-back" href="{{ url_for('jobs.jobs_page') }}">
+        <span class="back-arrow">&rarr;</span>
+        رجوع لعروض الخدمة
+    </a>
+</header>
+
+<main>
+    <div class="article-header">
+
+        <span class="category">{{ offer.source_site }}</span>
+
+        <h1>{{ offer.title_ar }}</h1>
+
+        <div class="job-meta" style="margin-bottom: 22px;">
+            {% if offer.company_ar %}{{ offer.company_ar }} &middot; {% endif %}
+            آخر أجل: {{ offer.deadline or "غير محدد" }}
+        </div>
+
+        {% if offer.description_ar %}
+        <div class="job-block">
+            <strong>الوصف</strong>
+            <p>{{ offer.description_ar }}</p>
+        </div>
+        {% endif %}
+
+        {% if offer.conditions_ar %}
+        <div class="job-block">
+            <strong>الشروط</strong>
+            <p>{{ offer.conditions_ar }}</p>
+        </div>
+        {% endif %}
+
+        {% if offer.documents_ar %}
+        <div class="job-block">
+            <strong>الوثائق المطلوبة</strong>
+            <p>{{ offer.documents_ar }}</p>
+        </div>
+        {% endif %}
+
+        {% if offer.how_to_apply_ar %}
+        <div class="job-block">
+            <strong>كيفاش تدير الترشيح</strong>
+            <p>{{ offer.how_to_apply_ar }}</p>
+        </div>
+        {% endif %}
+
+        <div class="disclaimer">
+            تأكد من المعلومات فالمصدر الأصلي قبل ما تدير الترشيح.
+        </div>
+
+        {% if offer.source_url %}
+            <div class="source">
+                <strong>المصدر:</strong>
+                {% if offer.source_site %}{{ offer.source_site }}{% endif %}
+                <br><br>
+                <a href="{{ offer.source_url }}" target="_blank" rel="noopener noreferrer">
+                    شوف العرض الأصلي &rarr;
+                </a>
+            </div>
+        {% endif %}
+
+    </div>
+</main>
+
+<footer>
+    &copy; {{ 2026 }} Corvx News.
+</footer>
+
+</body>
+</html>
