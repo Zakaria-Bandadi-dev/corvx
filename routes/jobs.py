@@ -1,12 +1,11 @@
-from flask import Blueprint, request, render_template, jsonify, abort
+from flask import request, render_template, jsonify, abort
 
 import state
+from app import app
 from config.settings import GA_ID, ADSENSE_CLIENT, JOBS_ROBOT_INTERVAL_HOURS
 from config.job_sites import JOB_SITES
 from database.jobs_repo import fetch_job_offers, fetch_job_offer_by_id
 from services.jobs_robot import run_jobs_robot
-
-jobs_bp = Blueprint("jobs", __name__)
 
 
 def _row_to_offer(row):
@@ -18,7 +17,7 @@ def _row_to_offer(row):
     }
 
 
-@jobs_bp.route("/jobs")
+@app.route("/jobs")
 def jobs_page():
     category = request.args.get("category")
     if category not in JOB_SITES:
@@ -41,7 +40,7 @@ def jobs_page():
     )
 
 
-@jobs_bp.route("/jobs/<int:offer_id>")
+@app.route("/jobs/<int:offer_id>")
 def job_detail(offer_id):
     row = fetch_job_offer_by_id(offer_id)
     if not row:
@@ -57,7 +56,7 @@ def job_detail(offer_id):
     )
 
 
-@jobs_bp.route("/jobs-status")
+@app.route("/jobs-status")
 def jobs_status_json():
     data = dict(state.jobs_robot_status)
     data["last_run_start"] = state.jobs_robot_status["last_run_start"].isoformat() if state.jobs_robot_status["last_run_start"] else None
@@ -65,7 +64,7 @@ def jobs_status_json():
     return jsonify(data)
 
 
-@jobs_bp.route("/run-jobs-robot")
+@app.route("/run-jobs-robot")
 def manual_jobs_robot():
     run_jobs_robot()
     return """
