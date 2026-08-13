@@ -222,14 +222,103 @@ def extract_deadline(text: str) -> str:
         r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
         r"\b\d{4}-\d{2}-\d{2}\b",
         r"\b\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4}\b",
+        r"(?:dernier\s+délai|dernier\s+delai|avant\s+le|jusqu\'au|jusqu'au|jusqu\s*à\s*\d)"
     ]
 
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
+            if "dernier" in match.group(0).lower() or "avant" in match.group(0).lower() or "jusqu" in match.group(0).lower():
+                return match.group(0)
             return match.group(0)
 
     return "Non spécifié"
+
+
+def extract_deadline_from_text(text: str) -> str:
+    if not text:
+        return "Non spécifié"
+
+    text = normalize_text(text)
+    date_patterns = [
+        r"(?:Dernier\s+délai|Dernier\s+delai|Avant\s+le|Jusqu\'au|Jusqu'au|Jusqu\s*à|Date\s+limite|Date\s+limite\s*:)\s*[:\-]?\s*\d{1,2}\s*(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s*\d{4}",
+        r"\b\d{1,2}\s*(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s*\d{4}\b",
+        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
+        r"\b\d{4}-\d{2}-\d{2}\b",
+    ]
+
+    for pattern in date_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(0)
+
+    return "Non spécifié"
+
+
+def extract_institution_name(text: str) -> str:
+    if not text:
+        return "Université Marocaine"
+
+    text = normalize_text(text)
+    matches = [
+        "FS Rabat", "Faculté des Sciences Rabat", "Faculte des Sciences Rabat", "FSJES", "FSJES Rabat",
+        "ENCG Settat", "ENCG Casablanca", "UM6P", "ENSA Marrakech", "ENSA", "ENSAM", "ENSIAS",
+        "FST", "FS Tétouan", "FS Tetouan", "Institut National", "Université Mohammed VI"
+    ]
+    for candidate in matches:
+        if candidate.lower() in text.lower():
+            return candidate
+
+    possible = re.search(r"(?:Faculté|Faculte|Université|Université|Institut|Ecole|École|ENCG|ENSA|FSJES|FS\s+[A-Za-zÀ-ÿ]+)\s+[A-Za-zÀ-ÿ\- ]{2,}", text, re.IGNORECASE)
+    if possible:
+        cleaned = possible.group(0)
+        if len(cleaned) < 120:
+            return cleaned.strip()
+
+    return "Université Marocaine"
+
+
+def is_navigation_or_menu_link(title: str, href: str = "", classes: Optional[List[str]] = None) -> bool:
+    label = normalize_for_match(f"{title} {href or ''} {' '.join(classes or [])}")
+    if not label:
+        return False
+
+    nav_keywords = (
+        "menu", "accueil", "home", "about", "a propos", "contact", "faq", "blog",
+        "actualites", "actualité", "news", "campus", "carriere", "emploi", "partenariat",
+        "recrutement", "presse", "evenement", "événement", "sante", "logement"
+    )
+    return any(keyword in label for keyword in nav_keywords)
+
+
+def find_official_application_link(article_text: str, fallback_url: str) -> str:
+    text = article_text or ""
+    if not text:
+        return fallback_url
+
+    lower_text = text.lower()
+    keywords = (
+        "inscription", "candidature", "postuler", "forms", "preinscription", "pre-inscription",
+        "e-services", "touwsit", "enssup", "e-service", "admission", "apply", "portal", ".ac.ma", ".ma"
+    )
+
+    urls = re.findall(r"https?:\/\/[^\s)\]>\"']+", text)
+    for url in urls:
+        normalized = url.lower()
+        if any(keyword in normalized for keyword in [
+            "inscription", "candidature", "postuler", "form", "preinscription", "touwsit",
+            "enssup", "admission", "apply", ".ac.ma", ".ma"
+        ]):
+            return url
+
+    for keyword in keywords:
+        if keyword in lower_text:
+            for match in re.finditer(r"https?:\/\/[^\s)\]>\"']+", text, flags=re.IGNORECASE):
+                candidate = match.group(0)
+                if ".ac.ma" in candidate.lower() or ".ma" in candidate.lower() or any(k in candidate.lower() for k in ["inscription", "candidature", "postuler", "form", "touwsit", "enssup"]):
+                    return candidate
+
+    return fallback_url
 
 
 def detect_category(title: str, description: str = "") -> str:
@@ -431,6 +520,67 @@ def parse_rss_feed(url: str, source_name: str, source_url: str) -> List[Dict[str
     return items
 
 
+def fetch_article_details(article_url: str, article_title: str, source_name: str, source_url: str) -> Optional[Dict[str, str]]:
+    try:
+        article_response = requests.get(article_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        article_response.raise_for_status()
+    except Exception:
+        return None
+
+    article_soup = BeautifulSoup(article_response.text, "html.parser")
+
+    for tag in article_soup.select("nav, header, footer, .menu, .navigation, .wp-block-navigation, .main-navigation, script, style"):
+        tag.decompose()
+
+    content_blocks = []
+    content_candidates = article_soup.select("article, main, .entry-content, .post-content, .content, .article-content, .single-post, .description")
+    if not content_candidates:
+        content_candidates = [article_soup]
+
+    for candidate in content_candidates:
+        for sel in ["p", "li", "h1", "h2", "h3", "h4", "div"]:
+            for node in candidate.select(sel):
+                text = normalize_text(node.get_text(" ", strip=True))
+                if text and len(text) > 20:
+                    content_blocks.append(text)
+
+    article_text = "\n".join(content_blocks)
+    if not article_text:
+        article_text = normalize_text(article_soup.get_text(" ", strip=True))
+
+    if not article_text:
+        return None
+
+    full_title = normalize_text(article_title) or title_from_element(article_soup)
+    if not full_title or not is_valid_orientation_title(full_title, article_text):
+        return None
+
+    if any(token in full_title.lower() for token in ["menu", "accueil", "contact", "home", "a propos", "about", "faq", "blog"]):
+        return None
+
+    deadline = extract_deadline_from_text(f"{full_title} {article_text}")
+    institution = extract_institution_name(f"{full_title} {article_text}")
+    apply_link = find_official_application_link(article_text, article_url)
+
+    if "master" in full_title.lower():
+        category = "Master & Master Spécialisé"
+    elif "licence" in full_title.lower():
+        category = "Licence d'Excellence & Bachelor"
+    else:
+        category = detect_category(full_title, article_text)
+
+    return {
+        "title": full_title[:250],
+        "category": category,
+        "institution": institution,
+        "deadline": deadline,
+        "description": article_text[:2000],
+        "apply_link": apply_link,
+        "source_name": source_name,
+        "source_url": source_url,
+    }
+
+
 def parse_almaster_maroc_page(url: str, source_name: str, source_url: str) -> List[Dict[str, str]]:
     try:
         response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
@@ -442,133 +592,67 @@ def parse_almaster_maroc_page(url: str, source_name: str, source_url: str) -> Li
     items: List[Dict[str, str]] = []
     seen = set()
 
-    candidate_selectors = [
-        "article",
-        ".post",
-        ".post-item",
-        ".entry",
-        ".entry-content",
-        ".post-content",
-        "article .entry-header",
-        "article .entry-title",
-        "h2.entry-title a",
-        "h3 a",
-        "h2 a",
-        ".post-title a",
-        ".entry-header a",
-        ".post-content a",
-    ]
-
-    candidates = []
-    for selector in candidate_selectors:
-        candidates.extend(soup.select(selector))
-
-    for element in candidates[:400]:
-        article_link = None
-        if element.name == "a":
-            article_link = element
-        else:
-            article_link = element.select_one("a[href]")
-
-        if not article_link:
+    article_links = []
+    for anchor in soup.select("a[href]"):
+        href = anchor.get("href")
+        if not href:
             continue
-
-        title = normalize_text(article_link.get_text(" ", strip=True))
-        href = article_link.get("href")
-        if not href or not title or len(title) < 10:
+        text = normalize_text(anchor.get_text(" ", strip=True))
+        classes = anchor.get("class") or []
+        if is_navigation_or_menu_link(text, href, classes):
             continue
-
-        if any(token in title.lower() for token in ["menu", "contact", "home", "about", "a propos", "logement", "sante", "école", "campus"]):
+        if any(token in text.lower() for token in ["menu", "accueil", "contact", "a propos", "about", "faq", "blog", "emploi", "stage", "partenariat"]):
             continue
-
+        if len(text) < 8:
+            continue
         link = to_absolute_url(url, href)
         if not link.startswith("http"):
             continue
-
-        if not is_valid_orientation_title(title, ""):
+        if not is_valid_orientation_title(text, ""):
             continue
-
-        if title.lower().startswith("menu"):
+        if any(part in link.lower() for part in ["#", "javascript:", "tel:", "mailto:"]):
             continue
+        article_links.append((text, link))
 
-        final_key = (title.lower(), link.lower())
-        if final_key in seen:
+    for title, link in article_links[:200]:
+        key = (title.lower(), link.lower())
+        if key in seen:
             continue
-        seen.add(final_key)
+        seen.add(key)
 
-        title_lower = title.lower()
-        if "master" in title_lower:
-            category = "Master & Master Spécialisé"
-        elif "licence" in title_lower:
-            category = "Licence d'Excellence & Bachelor"
-        else:
-            category = "Master & Master Spécialisé" if "almaster" in url.lower() else detect_category(title, "")
-
-        institution = "Université Marocaine"
-        if any(token in title_lower for token in ["fs", "faculté", "faculte", "encg", "ena", "ensa", "ensam", "um6p", "hec"]):
-            institution = "Université Marocaine"
-
-        if "encg" in title_lower:
-            institution = "ENCG"
-        elif "um6p" in title_lower:
-            institution = "UM6P"
-        elif "fs rabat" in title_lower or "fs " in title_lower:
-            institution = "FS Rabat"
-        elif "ensa" in title_lower:
-            institution = "ENSA"
-        elif "ensam" in title_lower:
-            institution = "ENSAM"
-
-        description = ""
-        parent = element.parent
-        if parent:
-            text_bits = [normalize_text(node.get_text(" ", strip=True)) for node in parent.select("p, .excerpt, .summary, .entry-content") if normalize_text(node.get_text(" ", strip=True))]
-            if text_bits:
-                description = text_bits[0][:500]
-
-        items.append(
-            {
-                "title": title[:250],
-                "category": category,
-                "institution": institution,
-                "deadline": extract_deadline(f"{title} {description}"),
-                "description": description[:500] or "Annonce de master ou licence au Maroc.",
-                "apply_link": link,
-                "source_name": source_name,
-                "source_url": source_url,
-            }
-        )
+        article = fetch_article_details(link, title, source_name, source_url)
+        if article:
+            items.append(article)
 
     if not items:
-        for link in [url, "https://almaster-maroc.com/category/master/", "https://almaster-maroc.com/category/licence/"]:
+        fallback_links = [
+            url,
+            "https://almaster-maroc.com/category/master/",
+            "https://almaster-maroc.com/category/licence/",
+        ]
+        for fallback_url in fallback_links:
             try:
-                page = requests.get(link, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+                page = requests.get(fallback_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
                 page.raise_for_status()
-                soup2 = BeautifulSoup(page.text, "html.parser")
-                for anchor in soup2.select("a[href]")[:200]:
-                    href = anchor.get("href")
-                    text = normalize_text(anchor.get_text(" ", strip=True))
-                    if not href or not text or len(text) < 10:
-                        continue
-                    if not is_valid_orientation_title(text, ""):
-                        continue
-                    full_link = to_absolute_url(link, href)
-                    if any(nav in text.lower() for nav in ["accueil", "contact", "menu", "a propos", "about"]) or not full_link.startswith("http"):
-                        continue
-                    items.append(
-                        {
-                            "title": text[:250],
-                            "category": "Master & Master Spécialisé" if "master" in text.lower() else "Licence d'Excellence & Bachelor",
-                            "institution": "Université Marocaine",
-                            "deadline": extract_deadline(text),
-                            "description": "Annonce publiée sur Almaster Maroc.",
-                            "apply_link": full_link,
-                            "source_name": source_name,
-                            "source_url": source_url,
-                        }
-                    )
             except Exception:
                 continue
+
+            fallback_soup = BeautifulSoup(page.text, "html.parser")
+            for anchor in fallback_soup.select("a[href]")[:200]:
+                href = anchor.get("href")
+                if not href:
+                    continue
+                text = normalize_text(anchor.get_text(" ", strip=True))
+                if not text or len(text) < 10:
+                    continue
+                if is_navigation_or_menu_link(text, href, anchor.get("class") or []):
+                    continue
+                if not is_valid_orientation_title(text, ""):
+                    continue
+                full_link = to_absolute_url(fallback_url, href)
+                item = fetch_article_details(full_link, text, source_name, source_url)
+                if item:
+                    items.append(item)
 
     return items
 
