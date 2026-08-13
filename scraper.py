@@ -8,7 +8,21 @@ import xml.etree.ElementTree as ET
 
 import requests
 from bs4 import BeautifulSoup
-import psycopg
+
+try:
+    import psycopg
+except Exception:  # pragma: no cover
+    psycopg = None
+
+try:
+    import psycopg2
+except Exception:  # pragma: no cover
+    psycopg2 = None
+
+try:
+    from sqlalchemy import create_engine
+except Exception:  # pragma: no cover
+    create_engine = None
 
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -26,13 +40,13 @@ SOURCES = [
         "type": "general",
     },
     {
-        "name": "UM6P RSS",
-        "url": "https://www.um6p.ma/fr/actualites?format=rss",
-        "type": "rss",
+        "name": "UM6P Admissions",
+        "url": "https://www.um6p.ma/fr/actualites?category=admissions",
+        "type": "general",
     },
     {
-        "name": "Campus France Maroc",
-        "url": "https://www.campusfrance.org/fr",
+        "name": "FS Rabat",
+        "url": "https://www.fsr.ac.ma/fr/actualites",
         "type": "general",
     },
     {
@@ -43,6 +57,16 @@ SOURCES = [
     {
         "name": "Ministère de l'Éducation Nationale",
         "url": "https://www.enssup.gov.ma/",
+        "type": "general",
+    },
+    {
+        "name": "ENCG Casablanca",
+        "url": "https://www.encg.ucd.ac.ma/",
+        "type": "general",
+    },
+    {
+        "name": "ENSA Marrakech",
+        "url": "https://www.ensa.ac.ma/",
         "type": "general",
     },
 ]
@@ -57,7 +81,7 @@ FALLBACK_ANNOUNCEMENTS = [
         "apply_link": "https://www.ena.ma/",
     },
     {
-        "title": "Admissions Master Intelligence Artificielle UM6P 2026",
+        "title": "Master Intelligence Artificielle UM6P 2026",
         "category": "Master & Master Spécialisé",
         "institution": "Université Mohammed VI Polytechnique",
         "deadline": "30 Septembre 2026",
@@ -73,35 +97,87 @@ FALLBACK_ANNOUNCEMENTS = [
         "apply_link": "https://www.fsr.ac.ma/fr/actualites",
     },
     {
-        "title": "Cycle Ingénieur — Électronique, IA et Robotique",
+        "title": "Cycle d'ingénieur - Électronique, IA et Robotique",
         "category": "Cycles d'Ingénieurs",
         "institution": "Écoles d'ingénieurs et établissements publics marocains",
         "deadline": "25 Octobre 2026",
         "description": "Dossiers d’admission pour les cycles ingénieurs en électronique, robotique, IA et systèmes embarqués.",
         "apply_link": "https://ensias.um5s.ac.ma/",
     },
+    {
+        "title": "Inscription ENCG - Master Finance et Gestion 2026",
+        "category": "Master & Master Spécialisé",
+        "institution": "ENCG Casablanca",
+        "deadline": "05 Novembre 2026",
+        "description": "Ouverture des inscriptions au master en finance, gestion, comptabilité et management des organisations.",
+        "apply_link": "https://www.encg.ucd.ac.ma/",
+    },
 ]
 
 CATEGORY_KEYWORDS = {
     "Après Bac (Concours Bac)": [
-        "apres bac", "après bac", "concours bac", "bac 2026", "concours de recrutement", "concours bac"
+        "concours", "concours bac", "admission", "baccalaureat", "bac 2026", "selection", "inscription", "ena"
     ],
     "Bac +2 (DEUG, DUT, BTS, CPGE, etc.)": [
-        "bac+2", "bac +2", "bts", "dut", "deug", "cpge", "prepas", "diplome universitaire"
+        "bac +2", "bac+2", "bts", "dut", "deug", "cpge", "prepa", "prépa", "diplome universitaire", "est", "fst"
     ],
     "Licence d'Excellence & Bachelor": [
-        "licence d'excellence", "licence excellence", "bachelor", "licence", "bachelor's"
+        "licence d'excellence", "licence excellence", "licence", "bachelor", "bachelor's", "excellence"
     ],
     "Cycles d'Ingénieurs": [
-        "cycle ingenieur", "cycle d'ingénieur", "engineering", "ingenieur", "ingénieur", "école d'ingénieurs"
+        "cycle d ingenieur", "cycle ingenieur", "ingenieur", "ingenierie", "engineering", "ecole d ingenieurs", "école d'ingénieurs", "ensa", "ensam", "est", "fst"
     ],
     "Master & Master Spécialisé": [
-        "master", "mastère", "mastere", "master specialise", "master spécialisé"
+        "master", "mastere", "mastère", "master specialise", "master spécialisé", "mastérisé", "encg"
     ],
     "Doctorat": [
-        "doctorat", "phd", "these", "doctorale"
+        "doctorat", "phd", "these", "thèse", "doctorale"
     ],
 }
+
+VALID_TITLE_KEYWORDS = (
+    "concours", "master", "licence", "bourse", "bac", "inscription", "selection", "cycle d'ingénieur",
+    "cycle ingenieur", "cpge", "est", "fst", "ensa", "ensam", "encg"
+)
+
+EXCLUDED_TITLE_TOKENS = (
+    "santé", "logement", "a propos", "about", "campus france live", "campus france",
+    "actualite", "actualité", "contact", "faq", "blog", "evenement", "evenementiel",
+    "news", "devenir", "presse", "partenariat", "emploi", "stage", "recrutement"
+)
+
+ACCENT_TRANSLATION = str.maketrans({
+    'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+    'ç': 'c',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'î': 'i', 'ï': 'i', 'í': 'i',
+    'ô': 'o', 'ö': 'o', 'ó': 'o',
+    'ù': 'u', 'û': 'u', 'ü': 'u', 'ú': 'u',
+    'ý': 'y', 'ÿ': 'y',
+    'ñ': 'n',
+    'œ': 'oe',
+    'æ': 'ae',
+})
+
+
+def normalize_for_match(value: Optional[str]) -> str:
+    if value is None:
+        return ""
+    return str(value).lower().translate(ACCENT_TRANSLATION)
+
+
+def is_valid_orientation_title(title: str, description: str = "") -> bool:
+    combined = normalize_for_match(f"{title} {description}")
+    if not combined:
+        return False
+
+    if any(token in combined for token in EXCLUDED_TITLE_TOKENS):
+        return False
+
+    if any(keyword in combined for keyword in VALID_TITLE_KEYWORDS):
+        return True
+
+    return False
 
 
 def normalize_text(value: Optional[str]) -> str:
@@ -137,9 +213,9 @@ def extract_deadline(text: str) -> str:
 
 
 def detect_category(title: str, description: str = "") -> str:
-    text = f"{title} {description}".lower()
+    text = normalize_for_match(f"{title} {description}")
     for category, keywords in CATEGORY_KEYWORDS.items():
-        if any(keyword in text for keyword in keywords):
+        if any(normalize_for_match(keyword) in text for keyword in keywords):
             return category
     return "Autre"
 
@@ -155,12 +231,21 @@ def to_absolute_url(base_url: str, href: str) -> str:
 def get_db_connection():
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is missing. Add it to your VS Code environment or local .env file.")
-    return psycopg.connect(DATABASE_URL)
+
+    if psycopg is not None:
+        return psycopg.connect(DATABASE_URL)
+    if psycopg2 is not None:
+        return psycopg2.connect(DATABASE_URL)
+    if create_engine is not None:
+        return create_engine(DATABASE_URL).connect()
+
+    raise RuntimeError("No supported PostgreSQL driver found. Install psycopg, psycopg2, or SQLAlchemy.")
 
 
 def ensure_table(conn):
-    with conn.cursor() as cur:
-        cur.execute(
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS orientation_announcements (
                 id SERIAL PRIMARY KEY,
@@ -178,13 +263,54 @@ def ensure_table(conn):
             );
             """
         )
-        cur.execute(
+        cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);"
         )
-        cur.execute(
+        cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);"
         )
         conn.commit()
+    except AttributeError:
+        conn.exec_driver_sql(
+            """
+            CREATE TABLE IF NOT EXISTS orientation_announcements (
+                id SERIAL PRIMARY KEY,
+                category TEXT,
+                title TEXT NOT NULL,
+                institution TEXT,
+                deadline TEXT,
+                description TEXT,
+                apply_link TEXT,
+                source_name TEXT,
+                source_url TEXT,
+                country TEXT DEFAULT 'MA',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (title, apply_link)
+            );
+            """
+        )
+        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);")
+        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);")
+        conn.commit()
+
+
+def clear_orientation_announcements(conn):
+    try:
+        with conn.cursor() as cur:
+            cur.execute("TRUNCATE TABLE orientation_announcements RESTART IDENTITY;")
+            conn.commit()
+    except Exception:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM orientation_announcements;")
+                conn.commit()
+        except Exception:
+            try:
+                conn.exec_driver_sql("TRUNCATE TABLE orientation_announcements RESTART IDENTITY;")
+                conn.commit()
+            except Exception:
+                conn.exec_driver_sql("DELETE FROM orientation_announcements;")
+                conn.commit()
 
 
 def title_from_element(el) -> str:
@@ -320,13 +446,16 @@ def parse_page(url: str, source_name: str, source_url: str) -> List[Dict[str, st
         if not title:
             continue
 
-        if len(title) < 10:
+        final_title = normalize_text(title)
+        if len(final_title) < 10:
             continue
 
         description = description_from_element(container)
         link = find_links_in_candidate(container, source_url) or url
 
-        final_title = normalize_text(title)
+        if not is_valid_orientation_title(final_title, description):
+            continue
+
         final_key = (final_title.lower(), link.lower())
         if final_key in seen:
             continue
@@ -394,6 +523,7 @@ def run_scraper():
 
     conn = get_db_connection()
     ensure_table(conn)
+    clear_orientation_announcements(conn)
 
     total_inserted = 0
     total_seen = 0
@@ -420,7 +550,7 @@ def run_scraper():
         time.sleep(1)
 
     if total_inserted == 0:
-        print("-> No live items found from the current sources. Inserting fallback Moroccan orientation announcements.")
+        print("-> No valid live items found from the current sources. Inserting fallback Moroccan orientation announcements.")
         for item in FALLBACK_ANNOUNCEMENTS:
             item_payload = {
                 "title": item["title"],
@@ -432,9 +562,11 @@ def run_scraper():
                 "source_name": "Fallback seed",
                 "source_url": item["apply_link"],
             }
-            if insert_if_new(conn, item_payload):
-                total_inserted += 1
-                print(f"FALLBACK INSERTED -> {item_payload['title'][:120]}")
+            if is_valid_orientation_title(item_payload["title"], item_payload["description"]):
+                inserted = insert_if_new(conn, item_payload)
+                if inserted:
+                    total_inserted += 1
+                    print(f"FALLBACK INSERTED -> {item_payload['title'][:120]}")
 
     conn.close()
     print(f"\nCompleted. Inserted: {total_inserted}. Checked: {total_seen}.")
