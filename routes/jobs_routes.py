@@ -1,7 +1,8 @@
 from flask import Blueprint, request, render_template, jsonify, abort
 
 import state
-from config.settings import JOB_SITES, GA_ID, ADSENSE_CLIENT, JOBS_ROBOT_INTERVAL_HOURS
+from config.settings import GA_ID, ADSENSE_CLIENT, JOBS_ROBOT_INTERVAL_HOURS
+from config.job_sites import JOB_SITES
 from database.jobs_repo import fetch_job_offers, fetch_job_offer_by_id
 from services.jobs_robot import run_jobs_robot
 
