@@ -1,6 +1,6 @@
 import re
 
-from flask import request, render_template
+from flask import abort, request, render_template
 from app import app
 from config.countries import COUNTRIES
 from config.languages import LANGUAGES
@@ -59,7 +59,7 @@ def normalize_category_key(raw_category):
 
 def fetch_orientation_items(category="all"):
     query = """
-        SELECT category, title, institution, deadline, description, apply_link
+        SELECT id, category, title, institution, deadline, description, apply_link
         FROM orientation_announcements
     """
     params = []
@@ -77,9 +77,10 @@ def fetch_orientation_items(category="all"):
             rows = cur.fetchall()
             items = []
             for row in rows:
-                db_category, title, institution, deadline, description, apply_link = row
+                item_id, db_category, title, institution, deadline, description, apply_link = row
                 items.append(
                     {
+                        "id": item_id,
                         "category": normalize_category_key(db_category),
                         "title": title or "Annonce",
                         "institution": institution or "Institution",
@@ -93,6 +94,38 @@ def fetch_orientation_items(category="all"):
     except Exception as exc:
         print(f"!! Orientation database query failed: {exc}")
         return []
+
+
+def fetch_orientation_item_by_id(item_id):
+    query = """
+        SELECT id, category, title, institution, deadline, description, apply_link
+        FROM orientation_announcements
+        WHERE id = %s
+        LIMIT 1
+    """
+
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(query, (item_id,))
+            row = cur.fetchone()
+            if not row:
+                return None
+
+            item_id, db_category, title, institution, deadline, description, apply_link = row
+            return {
+                "id": item_id,
+                "category": normalize_category_key(db_category),
+                "title": title or "Annonce",
+                "institution": institution or "Institution",
+                "deadline": deadline or "Aucun délai",
+                "description": description or "",
+                "cta": "Postuler",
+                "apply_link": apply_link or "#",
+            }
+    except Exception as exc:
+        print(f"!! Orientation detail query failed: {exc}")
+        return None
 
 
 @app.route("/orientation")
@@ -124,4 +157,32 @@ def orientation_page():
         current_language=lang,
         country_name=country_info["name"],
         canonical_url=absolute_url(f"/orientation?country={country}&lang={lang}"),
+    )
+
+
+@app.route("/orientation/<int:item_id>")
+def orientation_detail(item_id):
+    item = fetch_orientation_item_by_id(item_id)
+    if not item:
+        abort(404)
+
+    country = request.args.get("country")
+    if country not in COUNTRIES:
+        country = detect_country()
+
+    lang = request.args.get("lang")
+    if lang not in LANGUAGES:
+        lang = detect_language(country)
+
+    country_info = COUNTRIES.get(country, COUNTRIES["ma"])
+
+    return render_template(
+        "orientation_detail.html",
+        item=item,
+        countries=COUNTRIES,
+        languages=LANGUAGES,
+        current_country=country,
+        current_language=lang,
+        country_name=country_info["name"],
+        canonical_url=absolute_url(f"/orientation/{item_id}?country={country}&lang={lang}"),
     )

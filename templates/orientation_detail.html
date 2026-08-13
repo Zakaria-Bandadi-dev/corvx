@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ item.title }} | Corvx News</title>
+    <meta name="description" content="{{ item.description[:180] }}">
+    <link rel="canonical" href="{{ canonical_url }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<header class="site-header">
+    <div class="logo notranslate" translate="no">
+        <span class="logo-dot"></span>
+        Corvx NEWS
+    </div>
+    <div class="header-right">
+        <a href="{{ url_for('home', country=current_country, lang=current_language) }}" class="header-link">Home</a>
+        <a href="{{ url_for('jobs_page') }}" class="header-link">Jobs</a>
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="header-link">Orientation</a>
+    </div>
+</header>
+
+<main style="max-width: 980px; margin: 32px auto; padding: 0 20px 60px;">
+    <div style="margin-bottom: 18px;">
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="orientation-button" style="display:inline-block;">Retour aux concours</a>
+    </div>
+
+    <article class="orientation-card" style="padding: 28px;">
+        <div class="orientation-card-top" style="margin-bottom: 18px;">
+            <span class="orientation-badge">
+                {{ item.category | replace('_', ' ') | title }}
+            </span>
+            <span class="orientation-date">{{ item.deadline }}</span>
+        </div>
+
+        <h1 style="margin: 0 0 16px; font-size: clamp(2rem, 4vw, 3rem);">{{ item.title }}</h1>
+
+        <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom: 18px; color:#cfe1ff; font-size:0.95rem;">
+            <span><strong>Institution:</strong> {{ item.institution }}</span>
+            <span><strong>Deadline:</strong> {{ item.deadline }}</span>
+        </div>
+
+        <div class="orientation-description" style="font-size: 1.05rem; line-height: 1.8; color: #e6eefc; margin-bottom: 30px; white-space: pre-line;">
+            {{ item.description or 'Aucune description détaillée n\'a été fournie pour cette annonce.' }}
+        </div>
+
+        <div style="display:flex; justify-content:flex-start; margin-top: 20px;">
+            <a href="{{ item.apply_link }}" class="orientation-button" target="_blank" rel="noopener noreferrer" style="font-size: 1rem; padding: 14px 22px;">
+                Postuler / Postuler ici
+            </a>
+        </div>
+    </article>
+</main>
+
+<footer>
+    &copy; {{ current_language|upper }} Corvx News.
+</footer>
+
+</body>
+</html>
