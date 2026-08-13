@@ -1,9 +1,31 @@
+import re
+
 from flask import request, render_template
 from app import app
 from config.countries import COUNTRIES
 from config.languages import LANGUAGES
+from database.connection import get_db_connection
 from services.country_detection import detect_country, detect_language
 from utils.seo_helpers import absolute_url
+
+ORIENTATION_CATEGORY_MAP = {
+    "apres_bac": "apres_bac",
+    "après_bac": "apres_bac",
+    "apres bac": "apres_bac",
+    "après bac": "apres_bac",
+    "bac_plus_2": "bac_plus_2",
+    "bac +2": "bac_plus_2",
+    "bac+2": "bac_plus_2",
+    "licence_excellence": "licence_excellence",
+    "licence d'excellence": "licence_excellence",
+    "licence excellence": "licence_excellence",
+    "cycles_ingenieurs": "cycles_ingenieurs",
+    "cycle ingenieur": "cycles_ingenieurs",
+    "master": "master",
+    "doctorat": "doctorat",
+    "autre": "all",
+    "all": "all",
+}
 
 ORIENTATION_CATEGORIES = [
     {
@@ -143,6 +165,70 @@ ORIENTATION_ITEMS = [
 ]
 
 
+def normalize_category_key(raw_category):
+    if raw_category is None:
+        return "all"
+
+    value = str(raw_category).strip()
+    if value in ORIENTATION_CATEGORY_MAP:
+        return ORIENTATION_CATEGORY_MAP[value]
+
+    normalized = value.lower()
+    normalized = normalized.replace("&", " and ")
+    normalized = normalized.replace("-", " ")
+    normalized = normalized.replace("_", " ")
+    normalized = re.sub(r"\s+", " ", normalized)
+    key = normalized.replace(" ", "_")
+
+    return ORIENTATION_CATEGORY_MAP.get(key, key)
+
+
+def normalize_orientation_item(item):
+    category = normalize_category_key(item.get("category"))
+    if category == "all":
+        category = "all"
+
+    return {
+        "category": category,
+        "title": item.get("title") or "Untitled",
+        "institution": item.get("institution") or item.get("source_name") or "Institution",
+        "deadline": item.get("deadline") or "Non spécifié",
+        "description": item.get("description") or "",
+        "cta": item.get("cta") or "Read More",
+        "apply_link": item.get("apply_link") or item.get("source_url") or "#",
+    }
+
+
+def fetch_orientation_items(category="all"):
+    fallback_items = [
+        normalize_orientation_item(item)
+        for item in ORIENTATION_ITEMS
+        if category == "all" or normalize_category_key(item["category"]) == category
+    ]
+
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            query = "SELECT * FROM orientation_announcements ORDER BY created_at DESC"
+            cur.execute(query)
+            rows = cur.fetchall()
+            if not rows:
+                return fallback_items
+
+            columns = [desc[0] for desc in cur.description]
+            items = []
+            for row in rows:
+                record = dict(zip(columns, row))
+                item = normalize_orientation_item(record)
+                if category != "all" and item["category"] != category:
+                    continue
+                items.append(item)
+            return items or fallback_items
+    except Exception as exc:
+        print(f"!! Orientation database query failed: {exc}")
+        return fallback_items
+
+
 @app.route("/orientation")
 def orientation_page():
     country = request.args.get("country")
@@ -155,11 +241,10 @@ def orientation_page():
 
     country_info = COUNTRIES.get(country, COUNTRIES["ma"])
     active_category = request.args.get("category", "all")
+    if active_category not in {category["key"] for category in ORIENTATION_CATEGORIES}:
+        active_category = "all"
 
-    filtered_items = [
-        item for item in ORIENTATION_ITEMS
-        if active_category == "all" or item["category"] == active_category
-    ]
+    filtered_items = fetch_orientation_items(active_category)
 
     return render_template(
         "orientation.html",

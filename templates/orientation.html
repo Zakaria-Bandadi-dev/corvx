@@ -111,7 +111,7 @@
 
                     <div class="orientation-card-footer">
                         <span class="orientation-meta">Date limite: {{ item.deadline }}</span>
-                        <a href="#" class="orientation-button">{{ item.cta }}</a>
+                        <a href="{{ item.apply_link or '#' }}" class="orientation-button" target="_blank" rel="noopener noreferrer">{{ item.cta }}</a>
                     </div>
                 </article>
             {% endfor %}

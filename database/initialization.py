@@ -83,6 +83,27 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_articles_primary_keyword ON articles(primary_keyword);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_articles_trend_score ON articles(trend_score DESC);")
 
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS orientation_announcements (
+                id SERIAL PRIMARY KEY,
+                category TEXT,
+                title TEXT NOT NULL,
+                institution TEXT,
+                deadline TEXT,
+                description TEXT,
+                apply_link TEXT,
+                source_name TEXT,
+                source_url TEXT,
+                country TEXT DEFAULT 'MA',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (title, apply_link)
+            );
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);")
+
         conn.commit()
         cur.close()
         conn.close()
