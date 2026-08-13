@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 
 import state
-from config.settings import JOB_SITES
+from config.job_sites import JOB_SITES
 from database.jobs_repo import job_offer_exists, save_job_offer
 from services.groq_client import generate_with_groq_jobs
 from utils.text_helpers import extract_jobs_json, make_offer_hash
