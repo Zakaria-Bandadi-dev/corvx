@@ -162,7 +162,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="header-right">
-        <a href="{{ url_for('jobs.jobs_page') }}" class="header-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('jobs_page') }}" class="header-link">{{ t.jobs }}</a>
         <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="header-link">{{ t.orientation }}</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">{{ t.ai_tools }}</a>
 
@@ -192,7 +192,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
     <div class="drawer-section">
         <span class="drawer-label">{{ t.menu }}</span>
-        <a href="{{ url_for('jobs.jobs_page') }}" class="drawer-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('jobs_page') }}" class="drawer-link">{{ t.jobs }}</a>
         <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.orientation }}</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.ai_tools }}</a>
     </div>

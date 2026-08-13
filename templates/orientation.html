@@ -21,7 +21,7 @@
 
     <div class="header-right">
         <a href="{{ url_for('home', country=current_country, lang=current_language) }}" class="header-link">Home</a>
-        <a href="{{ url_for('jobs.jobs_page') }}" class="header-link">Jobs</a>
+        <a href="{{ url_for('jobs_page') }}" class="header-link">Jobs</a>
         <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="header-link">Orientation</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">AI Tools</a>
 
@@ -49,7 +49,7 @@
     <div class="drawer-section">
         <span class="drawer-label">Menu</span>
         <a href="{{ url_for('home', country=current_country, lang=current_language) }}" class="drawer-link">Home</a>
-        <a href="{{ url_for('jobs.jobs_page') }}" class="drawer-link">Jobs</a>
+        <a href="{{ url_for('jobs_page') }}" class="drawer-link">Jobs</a>
         <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="drawer-link">Orientation</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">AI Tools</a>
     </div>

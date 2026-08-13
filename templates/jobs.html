@@ -33,7 +33,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <a class="logo notranslate" translate="no" href="{{ url_for('home') }}">Corvx NEWS</a>
     <div class="header-right">
         <a href="{{ url_for('home') }}" class="header-link">الأخبار</a>
-        <a href="{{ url_for('jobs.jobs_page') }}" class="header-link">الوظائف</a>
+        <a href="{{ url_for('jobs_page') }}" class="header-link">الوظائف</a>
         <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="header-link">التوجيه</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">أدوات IA</a>
     </div>
@@ -45,9 +45,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="cat-tabs">
-        <a href="{{ url_for('jobs.jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
+        <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if not current_category else '' }}">الكل</a>
         {% for code, info in job_categories.items() %}
-            <a href="{{ url_for('jobs.jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
+            <a href="{{ url_for('jobs_page', category=code) }}" class="{{ 'active' if current_category == code else '' }}">{{ info.label }}</a>
         {% endfor %}
     </div>
 
