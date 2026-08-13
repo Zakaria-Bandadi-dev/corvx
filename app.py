@@ -7,6 +7,7 @@ from routes import home  # noqa: E402,F401
 from routes import articles  # noqa: E402,F401
 from routes import ai_tools  # noqa: E402,F401
 from routes import jobs  # noqa: E402,F401
+from routes import orientation  # noqa: E402,F401
 from routes import seo  # noqa: E402,F401
 from routes import robot_status  # noqa: E402,F401
 from routes import system  # noqa: E402,F401

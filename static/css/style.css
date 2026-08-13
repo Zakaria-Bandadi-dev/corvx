@@ -607,6 +607,141 @@ main { max-width: 1180px; margin: 0 auto; padding: 32px 22px 70px; }
 .faq li a:hover { opacity: 0.75; }
 
 /* ======================================================================
+   ORIENTATION GRID
+   ====================================================================== */
+
+.orientation-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 18px 0 8px;
+    margin-top: 12px;
+}
+
+.orientation-filter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 14px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-weight: 700;
+    transition: all var(--dur) var(--ease);
+}
+
+.orientation-filter:hover,
+.orientation-filter.is-active {
+    background: var(--accent-grad);
+    color: white;
+    border-color: transparent;
+    box-shadow: var(--shadow-glow);
+}
+
+.orientation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    margin-top: 24px;
+}
+
+.orientation-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: linear-gradient(180deg, rgba(18,20,28,0.96) 0%, rgba(12,14,20,0.96) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 18px 16px;
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+.orientation-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(124,109,251,0.4);
+    box-shadow: var(--shadow-glow);
+}
+
+.orientation-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.orientation-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #d8ecff;
+    background: rgba(34,211,238,0.12);
+    border: 1px solid rgba(34,211,238,0.22);
+}
+
+.orientation-date {
+    color: var(--text-faint);
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.orientation-card h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.4;
+}
+
+.orientation-institution {
+    margin: 0;
+    color: var(--accent-2);
+    font-weight: 700;
+    font-size: 0.88rem;
+}
+
+.orientation-description {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    flex: 1;
+}
+
+.orientation-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.orientation-meta {
+    color: var(--text-faint);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.orientation-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 12px;
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: white;
+    background: var(--accent-grad);
+    box-shadow: var(--shadow-glow);
+}
+
+/* ======================================================================
    JOB CARDS
    ====================================================================== */
 

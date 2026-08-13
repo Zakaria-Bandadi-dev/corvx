@@ -105,7 +105,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 {# ==================== UI TRANSLATIONS ==================== #}
 {% set translations = {
     'en': {
-        'home': 'Home', 'jobs': 'Jobs', 'ai_tools': 'AI Tools',
+        'home': 'Home', 'jobs': 'Jobs', 'orientation': 'Orientation', 'ai_tools': 'AI Tools',
         'menu': 'Menu', 'language': 'Language', 'country': 'Country',
         'latest_news': 'Latest News', 'news_sub': 'News selected for your country and language.',
         'read_article': 'Read article', 'arrow': '→',
@@ -116,7 +116,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         'ai_category': 'Artificial Intelligence'
     },
     'fr': {
-        'home': 'Accueil', 'jobs': 'Emplois', 'ai_tools': 'Outils IA',
+        'home': 'Accueil', 'jobs': 'Emplois', 'orientation': 'Orientation', 'ai_tools': 'Outils IA',
         'menu': 'Menu', 'language': 'Langue', 'country': 'Pays',
         'latest_news': 'Dernières actualités', 'news_sub': 'Actualités sélectionnées selon votre pays et votre langue.',
         'read_article': "Lire l'article", 'arrow': '→',
@@ -127,7 +127,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         'ai_category': 'Intelligence Artificielle'
     },
     'ar': {
-        'home': 'الرئيسية', 'jobs': 'الوظائف', 'ai_tools': 'أدوات الذكاء الاصطناعي',
+        'home': 'الرئيسية', 'jobs': 'الوظائف', 'orientation': 'التوجيه', 'ai_tools': 'أدوات الذكاء الاصطناعي',
         'menu': 'القائمة', 'language': 'اللغة', 'country': 'الدولة',
         'latest_news': 'آخر الأخبار', 'news_sub': 'أخبار مختارة حسب دولتك ولغتك.',
         'read_article': 'قراءة المقال', 'arrow': '←',
@@ -138,7 +138,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         'ai_category': 'الذكاء الاصطناعي'
     },
     'es': {
-        'home': 'Inicio', 'jobs': 'Empleos', 'ai_tools': 'Herramientas de IA',
+        'home': 'Inicio', 'jobs': 'Empleos', 'orientation': 'Orientación', 'ai_tools': 'Herramientas de IA',
         'menu': 'Menú', 'language': 'Idioma', 'country': 'País',
         'latest_news': 'Últimas noticias', 'news_sub': 'Noticias seleccionadas según tu país y tu idioma.',
         'read_article': 'Leer artículo', 'arrow': '→',
@@ -162,7 +162,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
 
     <div class="header-right">
-        <a href="{{ url_for('jobs_page') }}" class="header-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" class="header-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="header-link">{{ t.orientation }}</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">{{ t.ai_tools }}</a>
 
         <!-- hamburger icon: toggles #nav-toggle, side flips automatically in RTL -->
@@ -191,7 +192,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
     <div class="drawer-section">
         <span class="drawer-label">{{ t.menu }}</span>
-        <a href="{{ url_for('jobs_page') }}" class="drawer-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" class="drawer-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.orientation }}</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.ai_tools }}</a>
     </div>
 

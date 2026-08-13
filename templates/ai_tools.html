@@ -15,7 +15,7 @@
 {% set translations = {
     'en': {
         'logo_text': 'Corvx NEWS',
-        'home': 'Home', 'jobs': 'Jobs', 'ai_tools': 'AI Tools',
+        'home': 'Home', 'jobs': 'Jobs', 'orientation': 'Orientation', 'ai_tools': 'AI Tools',
         'menu': 'Menu', 'language': 'Language', 'country': 'Country',
         'ai_tools_title': 'AI Tools',
         'ai_tools_sub': 'Artificial intelligence tools, agents and the latest AI updates.',
@@ -26,7 +26,7 @@
     },
     'fr': {
         'logo_text': 'Corvx NEWS',
-        'home': 'Accueil', 'jobs': 'Emplois', 'ai_tools': 'Outils IA',
+        'home': 'Accueil', 'jobs': 'Emplois', 'orientation': 'Orientation', 'ai_tools': 'Outils IA',
         'menu': 'Menu', 'language': 'Langue', 'country': 'Pays',
         'ai_tools_title': 'Outils IA',
         'ai_tools_sub': "Outils, agents d'intelligence artificielle et dernières actualités IA.",
@@ -37,7 +37,7 @@
     },
     'ar': {
         'logo_text': 'كورفكس نيوز',
-        'home': 'الرئيسية', 'jobs': 'الوظائف', 'ai_tools': 'أدوات الذكاء الاصطناعي',
+        'home': 'الرئيسية', 'jobs': 'الوظائف', 'orientation': 'التوجيه', 'ai_tools': 'أدوات الذكاء الاصطناعي',
         'menu': 'القائمة', 'language': 'اللغة', 'country': 'الدولة',
         'ai_tools_title': 'أدوات الذكاء الاصطناعي',
         'ai_tools_sub': 'أدوات ووكلاء الذكاء الاصطناعي وآخر التحديثات.',
@@ -48,7 +48,7 @@
     },
     'es': {
         'logo_text': 'Corvx NEWS',
-        'home': 'Inicio', 'jobs': 'Empleos', 'ai_tools': 'Herramientas de IA',
+        'home': 'Inicio', 'jobs': 'Empleos', 'orientation': 'Orientación', 'ai_tools': 'Herramientas de IA',
         'menu': 'Menú', 'language': 'Idioma', 'country': 'País',
         'ai_tools_title': 'Herramientas de IA',
         'ai_tools_sub': 'Herramientas, agentes de inteligencia artificial y las últimas novedades de IA.',
@@ -72,7 +72,8 @@
 
     <div class="header-right">
         <a href="{{ url_for('home', country=current_country, lang=current_language) }}" class="header-link">{{ t.home }}</a>
-        <a href="{{ url_for('jobs_page') }}" class="header-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" class="header-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="header-link">{{ t.orientation }}</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">{{ t.ai_tools }}</a>
 
         <!-- hamburger icon: toggles #nav-toggle, side flips automatically in RTL -->
@@ -102,7 +103,8 @@
     <div class="drawer-section">
         <span class="drawer-label">{{ t.menu }}</span>
         <a href="{{ url_for('home', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.home }}</a>
-        <a href="{{ url_for('jobs_page') }}" class="drawer-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" class="drawer-link">{{ t.jobs }}</a>
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.orientation }}</a>
         <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">{{ t.ai_tools }}</a>
     </div>
 

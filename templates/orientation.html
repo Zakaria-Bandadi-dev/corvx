@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'ar' else 'ltr' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+    <title>Orientation — Corvx News</title>
+    <meta name="description" content="Orientation académique et concours pour les étudiants, les diplômés et les chercheurs.">
+    <link rel="canonical" href="{{ canonical_url }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<input type="checkbox" id="nav-toggle" class="nav-toggle">
+
+<header class="site-header">
+    <div class="logo notranslate" translate="no">
+        <span class="logo-dot"></span>
+        Corvx NEWS
+    </div>
+
+    <div class="header-right">
+        <a href="{{ url_for('home', country=current_country, lang=current_language) }}" class="header-link">Home</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" class="header-link">Jobs</a>
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="header-link">Orientation</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="header-link">AI Tools</a>
+
+        <label for="nav-toggle" class="hamburger" aria-label="Menu">
+            <span class="bars">
+                <span></span>
+                <span></span>
+                <span></span>
+            </span>
+        </label>
+    </div>
+</header>
+
+<label for="nav-toggle" class="nav-backdrop"></label>
+
+<nav class="drawer">
+    <div class="drawer-top">
+        <div class="logo notranslate" translate="no" style="font-size:1rem;">
+            <span class="logo-dot"></span>
+            Corvx NEWS
+        </div>
+        <label for="nav-toggle" class="drawer-close" aria-label="Close menu">&times;</label>
+    </div>
+
+    <div class="drawer-section">
+        <span class="drawer-label">Menu</span>
+        <a href="{{ url_for('home', country=current_country, lang=current_language) }}" class="drawer-link">Home</a>
+        <a href="{{ url_for('jobs.jobs_page') }}" class="drawer-link">Jobs</a>
+        <a href="{{ url_for('orientation_page', country=current_country, lang=current_language) }}" class="drawer-link">Orientation</a>
+        <a href="{{ url_for('ai_tools_page', country=current_country, lang=current_language) }}" class="drawer-link">AI Tools</a>
+    </div>
+
+    <div class="drawer-section">
+        <span class="drawer-label">Language</span>
+        <form method="get" action="{{ url_for('orientation_page') }}">
+            <input type="hidden" name="country" value="{{ current_country }}">
+            <select name="lang" onchange="this.form.submit()">
+                {% for code, name in languages.items() %}
+                <option value="{{ code }}" {{ 'selected' if code == current_language else '' }}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    <div class="drawer-section">
+        <span class="drawer-label">Country</span>
+        <form method="get" action="{{ url_for('orientation_page') }}">
+            <input type="hidden" name="lang" value="{{ current_language }}">
+            <select name="country" onchange="this.form.submit()">
+                {% for code, info in countries.items() %}
+                <option value="{{ code }}" {{ 'selected' if code == current_country else '' }}>{{ info.native }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</nav>
+
+<main>
+    <div class="hero">
+        <h1>Orientation</h1>
+        <p>Explore academic pathways, elite schools, admission tracks, and opportunities for each education level.</p>
+    </div>
+
+    <div class="orientation-toolbar" aria-label="Orientation filters">
+        {% for category in orientation_categories %}
+            <a href="{{ url_for('orientation_page', country=current_country, lang=current_language, category=category.key) }}"
+               class="orientation-filter {{ 'is-active' if active_category == category.key else '' }}">
+                {{ category.label }}
+            </a>
+        {% endfor %}
+    </div>
+
+    {% if orientation_items %}
+        <div class="orientation-grid">
+            {% for item in orientation_items %}
+                <article class="orientation-card">
+                    <div class="orientation-card-top">
+                        <span class="orientation-badge">
+                            {{ item.category | replace('_', ' ') | title }}
+                        </span>
+                        <span class="orientation-date">{{ item.deadline }}</span>
+                    </div>
+
+                    <h2>{{ item.title }}</h2>
+                    <p class="orientation-institution">{{ item.institution }}</p>
+                    <p class="orientation-description">{{ item.description }}</p>
+
+                    <div class="orientation-card-footer">
+                        <span class="orientation-meta">Date limite: {{ item.deadline }}</span>
+                        <a href="#" class="orientation-button">{{ item.cta }}</a>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="no-news">
+            <h2><span class="robot-dot"></span> No orientation programs yet</h2>
+            <p>Check back soon for new opportunities.</p>
+        </div>
+    {% endif %}
+</main>
+
+<footer>
+    &copy; {{ current_language|upper }} Corvx News.
+</footer>
+</body>
+</html>
