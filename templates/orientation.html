@@ -94,9 +94,9 @@
         {% endfor %}
     </div>
 
-    {% if orientation_items %}
+    {% if items %}
         <div class="orientation-grid">
-            {% for item in orientation_items %}
+            {% for item in items %}
                 <article class="orientation-card">
                     <div class="orientation-card-top">
                         <span class="orientation-badge">
@@ -118,8 +118,8 @@
         </div>
     {% else %}
         <div class="no-news">
-            <h2><span class="robot-dot"></span> No orientation programs yet</h2>
-            <p>Check back soon for new opportunities.</p>
+            <h2><span class="robot-dot"></span> Aucun concours disponible pour le moment</h2>
+            <p>Revenez plus tard pour découvrir de nouvelles opportunités.</p>
         </div>
     {% endif %}
 </main>

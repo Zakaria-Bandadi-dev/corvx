@@ -8,25 +8,6 @@ from database.connection import get_db_connection
 from services.country_detection import detect_country, detect_language
 from utils.seo_helpers import absolute_url
 
-ORIENTATION_CATEGORY_MAP = {
-    "apres_bac": "apres_bac",
-    "après_bac": "apres_bac",
-    "apres bac": "apres_bac",
-    "après bac": "apres_bac",
-    "bac_plus_2": "bac_plus_2",
-    "bac +2": "bac_plus_2",
-    "bac+2": "bac_plus_2",
-    "licence_excellence": "licence_excellence",
-    "licence d'excellence": "licence_excellence",
-    "licence excellence": "licence_excellence",
-    "cycles_ingenieurs": "cycles_ingenieurs",
-    "cycle ingenieur": "cycles_ingenieurs",
-    "master": "master",
-    "doctorat": "doctorat",
-    "autre": "all",
-    "all": "all",
-}
-
 ORIENTATION_CATEGORIES = [
     {
         "key": "all",
@@ -65,168 +46,53 @@ ORIENTATION_CATEGORIES = [
     },
 ]
 
-ORIENTATION_ITEMS = [
-    {
-        "category": "apres_bac",
-        "title": "Concours ENA 2026",
-        "institution": "ENA — École Nationale d'Administration",
-        "deadline": "15 Octobre 2026",
-        "description": "Programme de préparation aux concours de l'administration publique, du management public et des grands services de l'État.",
-        "cta": "Read More",
-    },
-    {
-        "category": "apres_bac",
-        "title": "Concours de l'Université Mohammed VI Polytechnique",
-        "institution": "UM6P — Rabat / Benguerir",
-        "deadline": "30 Septembre 2026",
-        "description": "Accès aux programmes d'excellence en ingénierie, sciences numériques, gestion et innovation technologique.",
-        "cta": "Postuler",
-    },
-    {
-        "category": "bac_plus_2",
-        "title": "DUT / BTS / CPGE — Parcours Intégrés",
-        "institution": "Université Hassan II / Centres publics",
-        "deadline": "20 Novembre 2026",
-        "description": "Des formations courtes et professionnalisantes pour consolider votre profil et accéder aux filières techniques ou commerciales.",
-        "cta": "Read More",
-    },
-    {
-        "category": "bac_plus_2",
-        "title": "BTS Digital Marketing 2026",
-        "institution": "IFM / Établissements privés marocains",
-        "deadline": "05 Novembre 2026",
-        "description": "Préparez-vous à un parcours professionnel en marketing digital, communication, e-commerce et gestion de marque.",
-        "cta": "Postuler",
-    },
-    {
-        "category": "licence_excellence",
-        "title": "Licence d'Excellence Web Development - FS Rabat",
-        "institution": "Faculté des Sciences Rabat",
-        "deadline": "12 Octobre 2026",
-        "description": "Formation de haut niveau en développement web, architecture logicielle, UX/UI et projets appliqués.",
-        "cta": "Read More",
-    },
-    {
-        "category": "licence_excellence",
-        "title": "Bachelor in Data Science & AI",
-        "institution": "International Business School / Campus Europe",
-        "deadline": "01 Novembre 2026",
-        "description": "Un bachelor orienté IA, analyse de données, visualisation, machine learning et gestion de projets technologiques.",
-        "cta": "Postuler",
-    },
-    {
-        "category": "cycles_ingenieurs",
-        "title": "Cycle Ingénieur Électronique et Systèmes Embarqués",
-        "institution": "École d'Ingénieurs Mohammed V / Maroc",
-        "deadline": "18 Octobre 2026",
-        "description": "Accès aux cycles ingénieurs spécialisés en électronique, robotique, IoT et systèmes intelligents.",
-        "cta": "Read More",
-    },
-    {
-        "category": "cycles_ingenieurs",
-        "title": "Engineering Program - Computer Science",
-        "institution": "ENSIAS / Écoles d'ingénieurs partenaires",
-        "deadline": "25 Octobre 2026",
-        "description": "Parcours intensif en informatique, cybersécurité, cloud, intelligence artificielle et architecture logicielle.",
-        "cta": "Postuler",
-    },
-    {
-        "category": "master",
-        "title": "Master en Intelligence Artificielle",
-        "institution": "Université Mohammed VI / Écoles partenaires",
-        "deadline": "30 Novembre 2026",
-        "description": "Formation avancée en IA, deep learning, traitement du langage naturel, vision par ordinateur et applications industrielles.",
-        "cta": "Read More",
-    },
-    {
-        "category": "master",
-        "title": "Master spécialisé en Finance Digitale",
-        "institution": "HEC / MBA & grandes écoles",
-        "deadline": "15 Novembre 2026",
-        "description": "Prépare à la transformation numérique de la finance, data, blockchain et modélisation de risque.",
-        "cta": "Postuler",
-    },
-    {
-        "category": "doctorat",
-        "title": "Doctorat en Sciences de l'Information",
-        "institution": "Université de Rabat / Labos de recherche",
-        "deadline": "10 Décembre 2026",
-        "description": "Programme doctoral structuré pour les profils de recherche avancée en IA, systèmes d'information et innovation scientifique.",
-        "cta": "Read More",
-    },
-    {
-        "category": "doctorat",
-        "title": "Doctorat en Génie Civil & Durabilité",
-        "institution": "Université Hassan II / Centres de recherche",
-        "deadline": "01 Décembre 2026",
-        "description": "Recherches appliquées sur les infrastructures durables, l'urbanisme intelligent et les matériaux de demain.",
-        "cta": "Postuler",
-    },
-]
-
 
 def normalize_category_key(raw_category):
     if raw_category is None:
         return "all"
 
     value = str(raw_category).strip()
-    if value in ORIENTATION_CATEGORY_MAP:
-        return ORIENTATION_CATEGORY_MAP[value]
-
-    normalized = value.lower()
-    normalized = normalized.replace("&", " and ")
-    normalized = normalized.replace("-", " ")
-    normalized = normalized.replace("_", " ")
-    normalized = re.sub(r"\s+", " ", normalized)
-    key = normalized.replace(" ", "_")
-
-    return ORIENTATION_CATEGORY_MAP.get(key, key)
-
-
-def normalize_orientation_item(item):
-    category = normalize_category_key(item.get("category"))
-    if category == "all":
-        category = "all"
-
-    return {
-        "category": category,
-        "title": item.get("title") or "Untitled",
-        "institution": item.get("institution") or item.get("source_name") or "Institution",
-        "deadline": item.get("deadline") or "Non spécifié",
-        "description": item.get("description") or "",
-        "cta": item.get("cta") or "Read More",
-        "apply_link": item.get("apply_link") or item.get("source_url") or "#",
-    }
+    normalized = value.lower().replace("&", " and ").replace("-", " ").replace("_", " ")
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized.replace(" ", "_") if normalized else "all"
 
 
 def fetch_orientation_items(category="all"):
-    fallback_items = [
-        normalize_orientation_item(item)
-        for item in ORIENTATION_ITEMS
-        if category == "all" or normalize_category_key(item["category"]) == category
-    ]
+    query = """
+        SELECT category, title, institution, deadline, description, apply_link
+        FROM orientation_announcements
+    """
+    params = []
+
+    if category and category != "all":
+        query += " WHERE LOWER(category) = LOWER(%s)"
+        params.append(category)
+
+    query += " ORDER BY created_at DESC"
 
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            query = "SELECT * FROM orientation_announcements ORDER BY created_at DESC"
-            cur.execute(query)
+            cur.execute(query, params)
             rows = cur.fetchall()
-            if not rows:
-                return fallback_items
-
-            columns = [desc[0] for desc in cur.description]
             items = []
             for row in rows:
-                record = dict(zip(columns, row))
-                item = normalize_orientation_item(record)
-                if category != "all" and item["category"] != category:
-                    continue
-                items.append(item)
-            return items or fallback_items
+                db_category, title, institution, deadline, description, apply_link = row
+                items.append(
+                    {
+                        "category": normalize_category_key(db_category),
+                        "title": title or "Annonce",
+                        "institution": institution or "Institution",
+                        "deadline": deadline or "Aucun délai",
+                        "description": description or "",
+                        "cta": "Voir plus",
+                        "apply_link": apply_link or "#",
+                    }
+                )
+            return items
     except Exception as exc:
         print(f"!! Orientation database query failed: {exc}")
-        return fallback_items
+        return []
 
 
 @app.route("/orientation")
@@ -244,11 +110,12 @@ def orientation_page():
     if active_category not in {category["key"] for category in ORIENTATION_CATEGORIES}:
         active_category = "all"
 
-    filtered_items = fetch_orientation_items(active_category)
+    items = fetch_orientation_items(active_category)
 
     return render_template(
         "orientation.html",
-        orientation_items=filtered_items,
+        items=items,
+        orientation_items=items,
         orientation_categories=ORIENTATION_CATEGORIES,
         active_category=active_category,
         countries=COUNTRIES,
