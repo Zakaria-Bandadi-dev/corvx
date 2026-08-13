@@ -35,6 +35,16 @@ REQUEST_TIMEOUT = 20
 
 SOURCES = [
     {
+        "name": "Almaster Maroc",
+        "url": "https://almaster-maroc.com/",
+        "type": "general",
+    },
+    {
+        "name": "Almaster Maroc RSS",
+        "url": "https://almaster-maroc.com/feed/",
+        "type": "rss",
+    },
+    {
         "name": "UM6P Actualités",
         "url": "https://www.um6p.ma/fr/actualites",
         "type": "general",
@@ -390,14 +400,70 @@ def parse_rss_feed(url: str, source_name: str, source_url: str) -> List[Dict[str
         if not link:
             link = source_url
 
+        if not is_valid_orientation_title(title, description):
+            continue
+
         deadline = extract_deadline(f"{title} {description}")
-        category = detect_category(title, description)
+        category = "Master & Master Spécialisé" if "almaster-maroc" in source_url.lower() or "almaster" in source_name.lower() else detect_category(title, description)
         items.append(
             {
                 "title": title[:250],
                 "category": category,
-                "institution": source_name,
+                "institution": "Almaster Maroc" if "almaster-maroc" in source_url.lower() or "almaster" in source_name.lower() else source_name,
                 "deadline": deadline,
+                "description": description[:500],
+                "apply_link": link,
+                "source_name": source_name,
+                "source_url": source_url,
+            }
+        )
+
+    return items
+
+
+def parse_almaster_maroc_page(url: str, source_name: str, source_url: str) -> List[Dict[str, str]]:
+    try:
+        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    items: List[Dict[str, str]] = []
+    seen = set()
+
+    for container in soup.select("article, .post, .entry, .list-item, .card, .item, li")[:200]:
+        title_el = container.select_one("h1, h2, h3, .entry-title, .post-title, a[href]")
+        if not title_el:
+            continue
+
+        title = normalize_text(title_el.get_text(" ", strip=True))
+        if not title or len(title) < 10:
+            continue
+
+        link_el = container.select_one("a[href]") or title_el
+        href = link_el.get("href") if hasattr(link_el, "get") else None
+        link = to_absolute_url(url, href) if href else url
+
+        description = ""
+        desc_el = container.select_one("p, .excerpt, .entry-content, .summary")
+        if desc_el:
+            description = normalize_text(desc_el.get_text(" ", strip=True))
+
+        if not is_valid_orientation_title(title, description):
+            continue
+
+        final_key = (title.lower(), link.lower())
+        if final_key in seen:
+            continue
+        seen.add(final_key)
+
+        items.append(
+            {
+                "title": title[:250],
+                "category": "Master & Master Spécialisé",
+                "institution": "Almaster Maroc",
+                "deadline": extract_deadline(f"{title} {description}"),
                 "description": description[:500],
                 "apply_link": link,
                 "source_name": source_name,
@@ -414,6 +480,11 @@ def parse_page(url: str, source_name: str, source_url: str) -> List[Dict[str, st
         response.raise_for_status()
     except Exception:
         return []
+
+    if "almaster-maroc.com" in url.lower() or "almaster" in source_name.lower():
+        items = parse_almaster_maroc_page(url, source_name, source_url)
+        if items:
+            return items
 
     content_type = (response.headers.get("Content-Type") or "").lower()
     if "xml" in content_type or url.lower().endswith(".xml") or "rss" in url.lower():
