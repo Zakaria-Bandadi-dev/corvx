@@ -40,6 +40,16 @@ SOURCES = [
         "type": "general",
     },
     {
+        "name": "Almaster Maroc Master",
+        "url": "https://almaster-maroc.com/category/master/",
+        "type": "general",
+    },
+    {
+        "name": "Almaster Maroc Licence",
+        "url": "https://almaster-maroc.com/category/licence/",
+        "type": "general",
+    },
+    {
         "name": "Almaster Maroc RSS",
         "url": "https://almaster-maroc.com/feed/",
         "type": "rss",
@@ -432,25 +442,53 @@ def parse_almaster_maroc_page(url: str, source_name: str, source_url: str) -> Li
     items: List[Dict[str, str]] = []
     seen = set()
 
-    for container in soup.select("article, .post, .entry, .list-item, .card, .item, li")[:200]:
-        title_el = container.select_one("h1, h2, h3, .entry-title, .post-title, a[href]")
-        if not title_el:
+    candidate_selectors = [
+        "article",
+        ".post",
+        ".post-item",
+        ".entry",
+        ".entry-content",
+        ".post-content",
+        "article .entry-header",
+        "article .entry-title",
+        "h2.entry-title a",
+        "h3 a",
+        "h2 a",
+        ".post-title a",
+        ".entry-header a",
+        ".post-content a",
+    ]
+
+    candidates = []
+    for selector in candidate_selectors:
+        candidates.extend(soup.select(selector))
+
+    for element in candidates[:400]:
+        article_link = None
+        if element.name == "a":
+            article_link = element
+        else:
+            article_link = element.select_one("a[href]")
+
+        if not article_link:
             continue
 
-        title = normalize_text(title_el.get_text(" ", strip=True))
-        if not title or len(title) < 10:
+        title = normalize_text(article_link.get_text(" ", strip=True))
+        href = article_link.get("href")
+        if not href or not title or len(title) < 10:
             continue
 
-        link_el = container.select_one("a[href]") or title_el
-        href = link_el.get("href") if hasattr(link_el, "get") else None
-        link = to_absolute_url(url, href) if href else url
+        if any(token in title.lower() for token in ["menu", "contact", "home", "about", "a propos", "logement", "sante", "école", "campus"]):
+            continue
 
-        description = ""
-        desc_el = container.select_one("p, .excerpt, .entry-content, .summary")
-        if desc_el:
-            description = normalize_text(desc_el.get_text(" ", strip=True))
+        link = to_absolute_url(url, href)
+        if not link.startswith("http"):
+            continue
 
-        if not is_valid_orientation_title(title, description):
+        if not is_valid_orientation_title(title, ""):
+            continue
+
+        if title.lower().startswith("menu"):
             continue
 
         final_key = (title.lower(), link.lower())
@@ -458,18 +496,79 @@ def parse_almaster_maroc_page(url: str, source_name: str, source_url: str) -> Li
             continue
         seen.add(final_key)
 
+        title_lower = title.lower()
+        if "master" in title_lower:
+            category = "Master & Master Spécialisé"
+        elif "licence" in title_lower:
+            category = "Licence d'Excellence & Bachelor"
+        else:
+            category = "Master & Master Spécialisé" if "almaster" in url.lower() else detect_category(title, "")
+
+        institution = "Université Marocaine"
+        if any(token in title_lower for token in ["fs", "faculté", "faculte", "encg", "ena", "ensa", "ensam", "um6p", "hec"]):
+            institution = "Université Marocaine"
+
+        if "encg" in title_lower:
+            institution = "ENCG"
+        elif "um6p" in title_lower:
+            institution = "UM6P"
+        elif "fs rabat" in title_lower or "fs " in title_lower:
+            institution = "FS Rabat"
+        elif "ensa" in title_lower:
+            institution = "ENSA"
+        elif "ensam" in title_lower:
+            institution = "ENSAM"
+
+        description = ""
+        parent = element.parent
+        if parent:
+            text_bits = [normalize_text(node.get_text(" ", strip=True)) for node in parent.select("p, .excerpt, .summary, .entry-content") if normalize_text(node.get_text(" ", strip=True))]
+            if text_bits:
+                description = text_bits[0][:500]
+
         items.append(
             {
                 "title": title[:250],
-                "category": "Master & Master Spécialisé",
-                "institution": "Almaster Maroc",
+                "category": category,
+                "institution": institution,
                 "deadline": extract_deadline(f"{title} {description}"),
-                "description": description[:500],
+                "description": description[:500] or "Annonce de master ou licence au Maroc.",
                 "apply_link": link,
                 "source_name": source_name,
                 "source_url": source_url,
             }
         )
+
+    if not items:
+        for link in [url, "https://almaster-maroc.com/category/master/", "https://almaster-maroc.com/category/licence/"]:
+            try:
+                page = requests.get(link, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+                page.raise_for_status()
+                soup2 = BeautifulSoup(page.text, "html.parser")
+                for anchor in soup2.select("a[href]")[:200]:
+                    href = anchor.get("href")
+                    text = normalize_text(anchor.get_text(" ", strip=True))
+                    if not href or not text or len(text) < 10:
+                        continue
+                    if not is_valid_orientation_title(text, ""):
+                        continue
+                    full_link = to_absolute_url(link, href)
+                    if any(nav in text.lower() for nav in ["accueil", "contact", "menu", "a propos", "about"]) or not full_link.startswith("http"):
+                        continue
+                    items.append(
+                        {
+                            "title": text[:250],
+                            "category": "Master & Master Spécialisé" if "master" in text.lower() else "Licence d'Excellence & Bachelor",
+                            "institution": "Université Marocaine",
+                            "deadline": extract_deadline(text),
+                            "description": "Annonce publiée sur Almaster Maroc.",
+                            "apply_link": full_link,
+                            "source_name": source_name,
+                            "source_url": source_url,
+                        }
+                    )
+            except Exception:
+                continue
 
     return items
 
