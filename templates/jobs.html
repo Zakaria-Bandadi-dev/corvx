@@ -56,12 +56,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     آخر أجل: {{ offer.deadline or "غير محدد" }}
                 </div>
 
-                {% if offer.description_ar %}
-                <div class="job-block">
-                    <p>{{ offer.description_ar[:180] }}{% if offer.description_ar|length > 180 %}...{% endif %}</p>
-                </div>
-                {% endif %}
-
                 <div class="job-source">
                     <a href="{{ url_for('job_detail', offer_id=offer.id) }}">
                         اقرأ المزيد &rarr;
