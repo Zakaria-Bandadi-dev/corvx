@@ -92,7 +92,7 @@ def fetch_job_offer_by_id(offer_id):
     Returns a single row (same column order as fetch_job_offers)
     or None if not found.
     """
-    conn = get_connection()  # reuse whatever connection helper fetch_job_offers uses
+    conn = get_db_connection()
     try:
         cur = conn.cursor()
         cur.execute(
