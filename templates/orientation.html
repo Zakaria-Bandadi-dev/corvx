@@ -107,8 +107,7 @@
 
                     <h2>{{ item.title }}</h2>
                     <p class="orientation-institution">{{ item.institution }}</p>
-                    <p class="orientation-description">{{ item.description }}</p>
-
+                    
                     <div class="orientation-card-footer">
                         <span class="orientation-meta">Date limite: {{ item.deadline }}</span>
                         <a href="{{ url_for('orientation_detail', item_id=item.id) }}" class="orientation-button">{{ item.cta }}</a>
