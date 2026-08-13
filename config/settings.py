@@ -1,4 +1,5 @@
 import os
+from config.job_sites import JOB_SITES
 
 GA_ID = os.getenv("GA_ID", "")
 ADSENSE_CLIENT = os.getenv("ADSENSE_CLIENT", "")
