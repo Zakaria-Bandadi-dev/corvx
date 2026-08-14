@@ -356,7 +356,7 @@ def classify_academic_level(title: str, content: str, url: str = "") -> str:
     if any(token in text for token in ["cycle ingenieur", "cycle d ingenieur", "cycle d'ingénieur", "cycle ingénieur", "ingenieur d etat", "ingénieur d'état", "concours ingenieur", "ecole d ingenieurs", "école d'ingénieurs", "premiere annee cycle ingenieur", "première année cycle ingénieur", "deuxieme annee cycle ingenieur", "deuxième année cycle ingénieur"]):
         if any(token in text for token in ["concours", "inscription", "admission", "candidature", "access", "preinscription", "préinscription"]):
             return "ingenieur"
-    if any(token in text for token in ["baccalaureat", "baccalauréat", "bac 202", "apres bac", "après bac", "apres le bac", "après le bac", "concours apres bac", "concours d acces apres bac"]):
+    if any(token in text for token in ["baccalaureat", "baccalauréat", "bac ", "apres bac", "après bac", "apres le bac", "après le bac", "concours apres bac", "concours d acces apres bac"]):
         return "bac"
     return "bac"
 
