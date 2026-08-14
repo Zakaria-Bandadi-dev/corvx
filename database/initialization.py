@@ -96,13 +96,24 @@ def init_db():
                 source_name TEXT,
                 source_url TEXT,
                 country TEXT DEFAULT 'MA',
+                academic_level TEXT,
+                announcement_type TEXT,
+                publication_date TEXT,
+                updated_at TEXT,
+                city TEXT,
+                eligibility TEXT,
+                required_diploma TEXT,
+                study_field TEXT,
+                image_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (title, apply_link)
+                UNIQUE (title, source_url)
             );
             """
         )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_academic_level ON orientation_announcements(academic_level);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_source_url ON orientation_announcements(source_url);")
 
         conn.commit()
         cur.close()

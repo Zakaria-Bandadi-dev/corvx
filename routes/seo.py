@@ -37,6 +37,16 @@ def sitemap_xml():
     # Jobs page.
     urls.append(absolute_url("/jobs"))
 
+    # Orientation pages.
+    for country_code in COUNTRIES:
+        for lang_code in LANGUAGES:
+            urls.append(
+                absolute_url(
+                    f"/orientation?country={urllib.parse.quote(country_code)}"
+                    f"&lang={urllib.parse.quote(lang_code)}"
+                )
+            )
+
     # Article URLs.
     try:
         conn = get_db_connection()
@@ -66,6 +76,34 @@ def sitemap_xml():
 
     except Exception as e:
         print(f"!! Sitemap database error: {e}")
+
+    # Orientation detail URLs.
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id
+            FROM orientation_announcements
+            ORDER BY created_at DESC
+        """)
+
+        orientation_rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        for orientation_id, in orientation_rows:
+            for country_code in COUNTRIES:
+                for lang_code in LANGUAGES:
+                    urls.append(
+                        absolute_url(
+                            f"/orientation/{orientation_id}?country={urllib.parse.quote(country_code)}"
+                            f"&lang={urllib.parse.quote(lang_code)}"
+                        )
+                    )
+
+    except Exception as e:
+        print(f"!! Orientation sitemap database error: {e}")
 
     # Remove duplicates while preserving order.
     urls = list(dict.fromkeys(urls))

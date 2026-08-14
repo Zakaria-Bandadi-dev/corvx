@@ -15,34 +15,29 @@ ORIENTATION_CATEGORIES = [
         "title": "All / Tout",
     },
     {
-        "key": "apres_bac",
-        "label": "Après Bac (Concours Bac)",
-        "title": "Après Bac",
+        "key": "bac",
+        "label": "BAC",
+        "title": "BAC",
     },
     {
-        "key": "bac_plus_2",
-        "label": "Bac +2 (DEUG, DUT, BTS, CPGE, etc.)",
-        "title": "Bac +2",
+        "key": "bac+2",
+        "label": "BAC+2",
+        "title": "BAC+2",
     },
     {
-        "key": "licence_excellence",
-        "label": "Licence d'Excellence & Bachelor",
-        "title": "Licence d'Excellence",
+        "key": "bac+3",
+        "label": "BAC+3",
+        "title": "BAC+3",
     },
     {
-        "key": "cycles_ingenieurs",
-        "label": "Cycles d'Ingénieurs",
-        "title": "Cycles d'Ingénieurs",
+        "key": "ingenieur",
+        "label": "Ingénieur",
+        "title": "Ingénieur",
     },
     {
-        "key": "master",
-        "label": "Master & Master Spécialisé",
-        "title": "Master",
-    },
-    {
-        "key": "doctorat",
-        "label": "Doctorat",
-        "title": "Doctorat",
+        "key": "bourses_etranger",
+        "label": "Bourses à l'étranger",
+        "title": "Bourses à l'étranger",
     },
 ]
 
@@ -59,7 +54,10 @@ def normalize_category_key(raw_category):
 
 def fetch_orientation_items(category="all"):
     query = """
-        SELECT id, category, title, institution, deadline, description, apply_link
+        SELECT
+            id, category, title, institution, deadline, description, apply_link,
+            source_name, source_url, country, academic_level, announcement_type,
+            publication_date, city, eligibility, required_diploma, study_field, image_url
         FROM orientation_announcements
     """
     params = []
@@ -77,7 +75,11 @@ def fetch_orientation_items(category="all"):
             rows = cur.fetchall()
             items = []
             for row in rows:
-                item_id, db_category, title, institution, deadline, description, apply_link = row
+                (
+                    item_id, db_category, title, institution, deadline, description, apply_link,
+                    source_name, source_url, country, academic_level, announcement_type,
+                    publication_date, city, eligibility, required_diploma, study_field, image_url,
+                ) = row
                 items.append(
                     {
                         "id": item_id,
@@ -87,7 +89,18 @@ def fetch_orientation_items(category="all"):
                         "deadline": deadline or "Aucun délai",
                         "description": description or "",
                         "cta": "Voir plus",
-                        "apply_link": apply_link or "#",
+                        "apply_link": apply_link or "",
+                        "source_name": source_name or "Orientation Chabab",
+                        "source_url": source_url or "",
+                        "country": country or "MA",
+                        "academic_level": academic_level or "bac",
+                        "announcement_type": announcement_type or "other",
+                        "publication_date": publication_date or "",
+                        "city": city or "",
+                        "eligibility": eligibility or "",
+                        "required_diploma": required_diploma or "",
+                        "study_field": study_field or "",
+                        "image_url": image_url or "",
                     }
                 )
             return items
@@ -98,7 +111,10 @@ def fetch_orientation_items(category="all"):
 
 def fetch_orientation_item_by_id(item_id):
     query = """
-        SELECT id, category, title, institution, deadline, description, apply_link
+        SELECT
+            id, category, title, institution, deadline, description, apply_link,
+            source_name, source_url, country, academic_level, announcement_type,
+            publication_date, city, eligibility, required_diploma, study_field, image_url
         FROM orientation_announcements
         WHERE id = %s
         LIMIT 1
@@ -112,7 +128,11 @@ def fetch_orientation_item_by_id(item_id):
             if not row:
                 return None
 
-            item_id, db_category, title, institution, deadline, description, apply_link = row
+            (
+                item_id, db_category, title, institution, deadline, description, apply_link,
+                source_name, source_url, country, academic_level, announcement_type,
+                publication_date, city, eligibility, required_diploma, study_field, image_url,
+            ) = row
             return {
                 "id": item_id,
                 "category": normalize_category_key(db_category),
@@ -121,7 +141,18 @@ def fetch_orientation_item_by_id(item_id):
                 "deadline": deadline or "Aucun délai",
                 "description": description or "",
                 "cta": "Postuler",
-                "apply_link": apply_link or "#",
+                "apply_link": apply_link or "",
+                "source_name": source_name or "Orientation Chabab",
+                "source_url": source_url or "",
+                "country": country or "MA",
+                "academic_level": academic_level or "bac",
+                "announcement_type": announcement_type or "other",
+                "publication_date": publication_date or "",
+                "city": city or "",
+                "eligibility": eligibility or "",
+                "required_diploma": required_diploma or "",
+                "study_field": study_field or "",
+                "image_url": image_url or "",
             }
     except Exception as exc:
         print(f"!! Orientation detail query failed: {exc}")

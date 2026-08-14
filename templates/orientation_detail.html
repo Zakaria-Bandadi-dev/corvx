@@ -40,17 +40,46 @@
         <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom: 18px; color:#cfe1ff; font-size:0.95rem;">
             <span><strong>Institution:</strong> {{ item.institution }}</span>
             <span><strong>Deadline:</strong> {{ item.deadline }}</span>
+            {% if item.city %}<span><strong>Ville:</strong> {{ item.city }}</span>{% endif %}
+            {% if item.country %}<span><strong>Pays:</strong> {{ item.country }}</span>{% endif %}
+        </div>
+
+        {% if item.image_url %}
+            <img src="{{ item.image_url }}" alt="{{ item.title }}" style="width:100%; max-height:420px; object-fit:cover; border-radius: 16px; border:1px solid rgba(255,255,255,0.08); margin-bottom:20px;">
+        {% endif %}
+
+        <div style="display:flex; flex-wrap:wrap; gap:10px; margin: 10px 0 18px;">
+            {% if item.academic_level %}<span class="orientation-badge">{{ item.academic_level | replace('_', ' ') | title }}</span>{% endif %}
+            {% if item.announcement_type %}<span class="orientation-badge">{{ item.announcement_type | replace('_', ' ') | title }}</span>{% endif %}
+            {% if item.publication_date %}<span class="orientation-badge">Publié: {{ item.publication_date }}</span>{% endif %}
         </div>
 
         <div class="orientation-description" style="font-size: 1.05rem; line-height: 1.8; color: #e6eefc; margin-bottom: 30px; white-space: pre-line;">
             {{ item.description or 'Aucune description détaillée n\'a été fournie pour cette annonce.' }}
         </div>
 
-        <div style="display:flex; justify-content:flex-start; margin-top: 20px;">
+        {% if item.required_diploma or item.eligibility or item.study_field %}
+        <div style="margin-bottom: 26px; padding: 16px 18px; background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius: 14px;">
+            {% if item.required_diploma %}<p><strong>Niveau requis:</strong> {{ item.required_diploma }}</p>{% endif %}
+            {% if item.eligibility %}<p><strong>Éligibilité:</strong> {{ item.eligibility }}</p>{% endif %}
+            {% if item.study_field %}<p><strong>Domaine:</strong> {{ item.study_field }}</p>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if item.apply_link %}
+        <div style="display:flex; justify-content:flex-start; margin-top: 20px; gap: 12px; flex-wrap: wrap;">
             <a href="{{ item.apply_link }}" class="orientation-button" target="_blank" rel="noopener noreferrer" style="font-size: 1rem; padding: 14px 22px;">
                 Postuler / Postuler ici
             </a>
         </div>
+        {% endif %}
+
+        {% if item.source_url %}
+        <div style="margin-top: 22px; font-size: 0.95rem; color: #d9e9ff;">
+            <strong>Source:</strong>
+            <a href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer" style="color: #8ec5ff;">{{ item.source_name or 'Orientation Chabab' }}</a>
+        </div>
+        {% endif %}
     </article>
 </main>
 

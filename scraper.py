@@ -1,9 +1,9 @@
+import json
 import os
 import re
 import time
-from datetime import datetime
-from typing import List, Dict, Optional
-from urllib.parse import urljoin, urlparse
+from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import urljoin, urlparse, urlsplit, urlunsplit
 import xml.etree.ElementTree as ET
 
 import requests
@@ -32,801 +32,651 @@ USER_AGENT = (
     "Chrome/126.0.0.0 Safari/537.36"
 )
 REQUEST_TIMEOUT = 20
-
-SOURCES = [
-    {
-        "name": "Almaster Maroc",
-        "url": "https://almaster-maroc.com/",
-        "type": "general",
-    },
-    {
-        "name": "Almaster Maroc Master",
-        "url": "https://almaster-maroc.com/category/master/",
-        "type": "general",
-    },
-    {
-        "name": "Almaster Maroc Licence",
-        "url": "https://almaster-maroc.com/category/licence/",
-        "type": "general",
-    },
-    {
-        "name": "Almaster Maroc RSS",
-        "url": "https://almaster-maroc.com/feed/",
-        "type": "rss",
-    },
-    {
-        "name": "UM6P Actualités",
-        "url": "https://www.um6p.ma/fr/actualites",
-        "type": "general",
-    },
-    {
-        "name": "UM6P Admissions",
-        "url": "https://www.um6p.ma/fr/actualites?category=admissions",
-        "type": "general",
-    },
-    {
-        "name": "FS Rabat",
-        "url": "https://www.fsr.ac.ma/fr/actualites",
-        "type": "general",
-    },
-    {
-        "name": "ENSIAS",
-        "url": "https://ensias.um5s.ac.ma/",
-        "type": "general",
-    },
-    {
-        "name": "Ministère de l'Éducation Nationale",
-        "url": "https://www.enssup.gov.ma/",
-        "type": "general",
-    },
-    {
-        "name": "ENCG Casablanca",
-        "url": "https://www.encg.ucd.ac.ma/",
-        "type": "general",
-    },
-    {
-        "name": "ENSA Marrakech",
-        "url": "https://www.ensa.ac.ma/",
-        "type": "general",
-    },
+REQUEST_RETRIES = 3
+REQUEST_DELAY_SECONDS = 1.0
+ORIENTATION_SOURCE_DOMAIN = "orientation-chabab.com"
+ORIENTATION_SITEMAPS = [
+    "https://orientation-chabab.com/sitemap1.xml",
+    "https://orientation-chabab.com/sitemap-news.xml",
 ]
-
-FALLBACK_ANNOUNCEMENTS = [
-    {
-        "title": "Concours d'admission ENA 2026",
-        "category": "Après Bac (Concours Bac)",
-        "institution": "ENA — École Nationale d'Administration",
-        "deadline": "15 Octobre 2026",
-        "description": "Concours national d’accès aux programmes de formation et de recrutement de l’administration publique et des services de l’État au Maroc.",
-        "apply_link": "https://www.ena.ma/",
-    },
-    {
-        "title": "Master Intelligence Artificielle UM6P 2026",
-        "category": "Master & Master Spécialisé",
-        "institution": "Université Mohammed VI Polytechnique",
-        "deadline": "30 Septembre 2026",
-        "description": "Programme Master en intelligence artificielle, data science, apprentissage automatique et innovation numérique.",
-        "apply_link": "https://www.um6p.ma/fr/actualites",
-    },
-    {
-        "title": "Licence d'Excellence - Informatique et systèmes numériques",
-        "category": "Licence d'Excellence & Bachelor",
-        "institution": "Faculté des Sciences Rabat / Universités partenaires",
-        "deadline": "12 Octobre 2026",
-        "description": "Parcours d’excellence pour les étudiants de licence en sciences, informatique, data et projets appliqués.",
-        "apply_link": "https://www.fsr.ac.ma/fr/actualites",
-    },
-    {
-        "title": "Cycle d'ingénieur - Électronique, IA et Robotique",
-        "category": "Cycles d'Ingénieurs",
-        "institution": "Écoles d'ingénieurs et établissements publics marocains",
-        "deadline": "25 Octobre 2026",
-        "description": "Dossiers d’admission pour les cycles ingénieurs en électronique, robotique, IA et systèmes embarqués.",
-        "apply_link": "https://ensias.um5s.ac.ma/",
-    },
-    {
-        "title": "Inscription ENCG - Master Finance et Gestion 2026",
-        "category": "Master & Master Spécialisé",
-        "institution": "ENCG Casablanca",
-        "deadline": "05 Novembre 2026",
-        "description": "Ouverture des inscriptions au master en finance, gestion, comptabilité et management des organisations.",
-        "apply_link": "https://www.encg.ucd.ac.ma/",
-    },
-]
-
-CATEGORY_KEYWORDS = {
-    "Après Bac (Concours Bac)": [
-        "concours", "concours bac", "admission", "baccalaureat", "bac 2026", "selection", "inscription", "ena"
-    ],
-    "Bac +2 (DEUG, DUT, BTS, CPGE, etc.)": [
-        "bac +2", "bac+2", "bts", "dut", "deug", "cpge", "prepa", "prépa", "diplome universitaire", "est", "fst"
-    ],
-    "Licence d'Excellence & Bachelor": [
-        "licence d'excellence", "licence excellence", "licence", "bachelor", "bachelor's", "excellence"
-    ],
-    "Cycles d'Ingénieurs": [
-        "cycle d ingenieur", "cycle ingenieur", "ingenieur", "ingenierie", "engineering", "ecole d ingenieurs", "école d'ingénieurs", "ensa", "ensam", "est", "fst"
-    ],
-    "Master & Master Spécialisé": [
-        "master", "mastere", "mastère", "master specialise", "master spécialisé", "mastérisé", "encg"
-    ],
-    "Doctorat": [
-        "doctorat", "phd", "these", "thèse", "doctorale"
-    ],
-}
-
-VALID_TITLE_KEYWORDS = (
-    "concours", "master", "licence", "bourse", "bac", "inscription", "selection", "cycle d'ingénieur",
-    "cycle ingenieur", "cpge", "est", "fst", "ensa", "ensam", "encg"
-)
-
-EXCLUDED_TITLE_TOKENS = (
-    "santé", "logement", "a propos", "about", "campus france live", "campus france",
-    "actualite", "actualité", "contact", "faq", "blog", "evenement", "evenementiel",
-    "news", "devenir", "presse", "partenariat", "emploi", "stage", "recrutement"
-)
-
-ACCENT_TRANSLATION = str.maketrans({
-    'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
-    'ç': 'c',
-    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-    'î': 'i', 'ï': 'i', 'í': 'i',
-    'ô': 'o', 'ö': 'o', 'ó': 'o',
-    'ù': 'u', 'û': 'u', 'ü': 'u', 'ú': 'u',
-    'ý': 'y', 'ÿ': 'y',
-    'ñ': 'n',
-    'œ': 'oe',
-    'æ': 'ae',
-})
-
-
-def normalize_for_match(value: Optional[str]) -> str:
-    if value is None:
-        return ""
-    return str(value).lower().translate(ACCENT_TRANSLATION)
-
-
-def is_valid_orientation_title(title: str, description: str = "") -> bool:
-    combined = normalize_for_match(f"{title} {description}")
-    if not combined:
-        return False
-
-    if any(token in combined for token in EXCLUDED_TITLE_TOKENS):
-        return False
-
-    if any(keyword in combined for keyword in VALID_TITLE_KEYWORDS):
-        return True
-
-    return False
 
 
 def normalize_text(value: Optional[str]) -> str:
     if value is None:
         return ""
-    cleaned = re.sub(r"\s+", " ", value)
-    return cleaned.strip()
+    return re.sub(r"\s+", " ", str(value)).strip()
 
 
-def safe_get_text(element) -> str:
-    if element is None:
+def normalize_url(raw_url: Optional[str]) -> Optional[str]:
+    if not raw_url:
+        return None
+    url = str(raw_url).strip()
+    if not url:
+        return None
+    if url.startswith("//"):
+        url = "https:" + url
+    try:
+        parsed = urlsplit(url)
+    except Exception:
+        return None
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        return None
+    cleaned = urlunsplit((scheme, parsed.netloc, parsed.path, "", ""))
+    return cleaned.rstrip("/") or cleaned
+
+
+def normalize_for_match(value: Optional[str]) -> str:
+    if value is None:
         return ""
-    return normalize_text(element.get_text(" ", strip=True))
-
-
-def extract_deadline(text: str) -> str:
-    if not text:
-        return "Non spécifié"
-
-    patterns = [
-        r"\b\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s+\d{4}\b",
-        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
-        r"\b\d{4}-\d{2}-\d{2}\b",
-        r"\b\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4}\b",
-        r"(?:dernier\s+délai|dernier\s+delai|avant\s+le|jusqu\'au|jusqu'au|jusqu\s*à\s*\d)"
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            if "dernier" in match.group(0).lower() or "avant" in match.group(0).lower() or "jusqu" in match.group(0).lower():
-                return match.group(0)
-            return match.group(0)
-
-    return "Non spécifié"
-
-
-def extract_deadline_from_text(text: str) -> str:
-    if not text:
-        return "Non spécifié"
-
-    text = normalize_text(text)
-    date_patterns = [
-        r"(?:Dernier\s+délai|Dernier\s+delai|Avant\s+le|Jusqu\'au|Jusqu'au|Jusqu\s*à|Date\s+limite|Date\s+limite\s*:)\s*[:\-]?\s*\d{1,2}\s*(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s*\d{4}",
-        r"\b\d{1,2}\s*(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s*\d{4}\b",
-        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
-        r"\b\d{4}-\d{2}-\d{2}\b",
-    ]
-
-    for pattern in date_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            return match.group(0)
-
-    return "Non spécifié"
-
-
-def extract_institution_name(text: str) -> str:
-    if not text:
-        return "Université Marocaine"
-
-    text = normalize_text(text)
-    matches = [
-        "FS Rabat", "Faculté des Sciences Rabat", "Faculte des Sciences Rabat", "FSJES", "FSJES Rabat",
-        "ENCG Settat", "ENCG Casablanca", "UM6P", "ENSA Marrakech", "ENSA", "ENSAM", "ENSIAS",
-        "FST", "FS Tétouan", "FS Tetouan", "Institut National", "Université Mohammed VI"
-    ]
-    for candidate in matches:
-        if candidate.lower() in text.lower():
-            return candidate
-
-    possible = re.search(r"(?:Faculté|Faculte|Université|Université|Institut|Ecole|École|ENCG|ENSA|FSJES|FS\s+[A-Za-zÀ-ÿ]+)\s+[A-Za-zÀ-ÿ\- ]{2,}", text, re.IGNORECASE)
-    if possible:
-        cleaned = possible.group(0)
-        if len(cleaned) < 120:
-            return cleaned.strip()
-
-    return "Université Marocaine"
-
-
-def is_navigation_or_menu_link(title: str, href: str = "", classes: Optional[List[str]] = None) -> bool:
-    label = normalize_for_match(f"{title} {href or ''} {' '.join(classes or [])}")
-    if not label:
-        return False
-
-    nav_keywords = (
-        "menu", "accueil", "home", "about", "a propos", "contact", "faq", "blog",
-        "actualites", "actualité", "news", "campus", "carriere", "emploi", "partenariat",
-        "recrutement", "presse", "evenement", "événement", "sante", "logement"
-    )
-    return any(keyword in label for keyword in nav_keywords)
-
-
-def find_official_application_link(article_text: str, fallback_url: str) -> str:
-    text = article_text or ""
-    if not text:
-        return fallback_url
-
-    lower_text = text.lower()
-    keywords = (
-        "inscription", "candidature", "postuler", "forms", "preinscription", "pre-inscription",
-        "e-services", "touwsit", "enssup", "e-service", "admission", "apply", "portal", ".ac.ma", ".ma"
-    )
-
-    urls = re.findall(r"https?:\/\/[^\s)\]>\"']+", text)
-    for url in urls:
-        normalized = url.lower()
-        if any(keyword in normalized for keyword in [
-            "inscription", "candidature", "postuler", "form", "preinscription", "touwsit",
-            "enssup", "admission", "apply", ".ac.ma", ".ma"
-        ]):
-            return url
-
-    for keyword in keywords:
-        if keyword in lower_text:
-            for match in re.finditer(r"https?:\/\/[^\s)\]>\"']+", text, flags=re.IGNORECASE):
-                candidate = match.group(0)
-                if ".ac.ma" in candidate.lower() or ".ma" in candidate.lower() or any(k in candidate.lower() for k in ["inscription", "candidature", "postuler", "form", "touwsit", "enssup"]):
-                    return candidate
-
-    return fallback_url
-
-
-def detect_category(title: str, description: str = "") -> str:
-    text = normalize_for_match(f"{title} {description}")
-    for category, keywords in CATEGORY_KEYWORDS.items():
-        if any(normalize_for_match(keyword) in text for keyword in keywords):
-            return category
-    return "Autre"
-
-
-def to_absolute_url(base_url: str, href: str) -> str:
-    if not href:
-        return base_url
-    if href.startswith("http://") or href.startswith("https://"):
-        return href
-    return urljoin(base_url, href)
+    text = str(value).lower()
+    translation = str.maketrans({
+        'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+        'ç': 'c',
+        'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+        'î': 'i', 'ï': 'i', 'í': 'i',
+        'ô': 'o', 'ö': 'o', 'ó': 'o',
+        'ù': 'u', 'û': 'u', 'ü': 'u', 'ú': 'u',
+        'ý': 'y', 'ÿ': 'y',
+        'ñ': 'n',
+        'œ': 'oe', 'æ': 'ae',
+    })
+    return text.translate(translation)
 
 
 def get_db_connection():
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is missing. Add it to your VS Code environment or local .env file.")
-
     if psycopg is not None:
         return psycopg.connect(DATABASE_URL)
     if psycopg2 is not None:
         return psycopg2.connect(DATABASE_URL)
     if create_engine is not None:
         return create_engine(DATABASE_URL).connect()
-
     raise RuntimeError("No supported PostgreSQL driver found. Install psycopg, psycopg2, or SQLAlchemy.")
 
 
-def ensure_table(conn):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS orientation_announcements (
-                id SERIAL PRIMARY KEY,
-                category TEXT,
-                title TEXT NOT NULL,
-                institution TEXT,
-                deadline TEXT,
-                description TEXT,
-                apply_link TEXT,
-                source_name TEXT,
-                source_url TEXT,
-                country TEXT DEFAULT 'MA',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (title, apply_link)
-            );
-            """
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);"
-        )
-        conn.commit()
-    except AttributeError:
-        conn.exec_driver_sql(
-            """
-            CREATE TABLE IF NOT EXISTS orientation_announcements (
-                id SERIAL PRIMARY KEY,
-                category TEXT,
-                title TEXT NOT NULL,
-                institution TEXT,
-                deadline TEXT,
-                description TEXT,
-                apply_link TEXT,
-                source_name TEXT,
-                source_url TEXT,
-                country TEXT DEFAULT 'MA',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (title, apply_link)
-            );
-            """
-        )
-        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);")
-        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);")
-        conn.commit()
-
-
-def clear_orientation_announcements(conn):
-    try:
-        with conn.cursor() as cur:
-            cur.execute("TRUNCATE TABLE orientation_announcements RESTART IDENTITY;")
-            conn.commit()
-    except Exception:
+def http_get(url: str, timeout: int = REQUEST_TIMEOUT, retries: int = REQUEST_RETRIES, allow_redirects: bool = True):
+    last_error = None
+    for attempt in range(1, retries + 1):
         try:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM orientation_announcements;")
-                conn.commit()
-        except Exception:
-            try:
-                conn.exec_driver_sql("TRUNCATE TABLE orientation_announcements RESTART IDENTITY;")
-                conn.commit()
-            except Exception:
-                conn.exec_driver_sql("DELETE FROM orientation_announcements;")
-                conn.commit()
+            response = requests.get(
+                url,
+                headers={"User-Agent": USER_AGENT},
+                timeout=timeout,
+                allow_redirects=allow_redirects,
+            )
+            if response.status_code in {403, 429} and attempt < retries:
+                time.sleep(2 ** attempt)
+                continue
+            if response.status_code >= 400:
+                raise requests.HTTPError(f"HTTP {response.status_code}")
+            return response
+        except Exception as exc:  # pragma: no cover
+            last_error = exc
+            if attempt < retries:
+                time.sleep(1.5 * attempt)
+    raise last_error or RuntimeError(f"Request failed for {url}")
 
 
-def title_from_element(el) -> str:
-    if not el:
-        return ""
-
-    for selector in ["h1", "h2", "h3", "h4", "a", ".title", ".entry-title"]:
-        match = el.select_one(selector)
-        if match:
-            text = safe_get_text(match)
-            if text:
-                return text
-
-    text = safe_get_text(el)
-    return text[:200]
+def is_orientation_chabab_url(url: Optional[str]) -> bool:
+    normalized = normalize_url(url)
+    if not normalized:
+        return False
+    host = urlparse(normalized).netloc.lower()
+    return ORIENTATION_SOURCE_DOMAIN in host
 
 
-def description_from_element(el) -> str:
-    if not el:
-        return ""
+def parse_sitemap_urls(sitemap_url: str) -> List[str]:
+    urls: List[str] = []
+    try:
+        response = http_get(sitemap_url)
+        root = ET.fromstring(response.text)
+        for node in root.iter():
+            if node.tag.endswith("loc") and node.text:
+                url = normalize_url(node.text)
+                if url:
+                    urls.append(url)
+    except Exception as exc:
+        print(f"[ORIENTATION] Sitemap failed: {sitemap_url} -> {exc}")
+    return urls
 
-    candidates = el.select("p, .summary, .description, .excerpt, .lead, .teaser")
-    for candidate in candidates:
-        text = safe_get_text(candidate)
-        if len(text) > 20:
-            return text
+
+def discover_orientation_urls() -> List[str]:
+    discovered: List[str] = []
+    seen: Set[str] = set()
+    for sitemap_url in ORIENTATION_SITEMAPS:
+        print(f"[ORIENTATION] Sitemap: {sitemap_url}")
+        for item_url in parse_sitemap_urls(sitemap_url):
+            normalized = normalize_url(item_url)
+            if not normalized or not is_orientation_chabab_url(normalized):
+                continue
+            if normalized not in seen:
+                seen.add(normalized)
+                discovered.append(normalized)
+    print(f"[ORIENTATION] Sitemap discovery complete: {len(discovered)} URLs discovered")
+    return discovered
+
+
+def safe_meta(soup: BeautifulSoup, *names: str) -> str:
+    for name in names:
+        tag = soup.select_one(f"meta[{name}]")
+        if tag and tag.get("content"):
+            return normalize_text(tag.get("content"))
     return ""
 
 
-def find_links_in_candidate(candidate, base_url: str) -> Optional[str]:
-    if candidate is None:
-        return None
-
-    anchor = candidate.select_one("a[href]")
-    if anchor:
-        href = anchor.get("href")
-        return to_absolute_url(base_url, href)
-
-    for selector in ["a[href]", "a[data-href]", "link[href]"]:
-        anchors = candidate.select(selector)
-        for a in anchors:
-            href = a.get("href") or a.get("data-href")
-            if href:
-                return to_absolute_url(base_url, href)
-    return None
+def sanitize_text(value: Optional[str]) -> str:
+    return normalize_text(re.sub(r"\s+", " ", str(value or ""))).strip()
 
 
-def parse_rss_feed(url: str, source_name: str, source_url: str) -> List[Dict[str, str]]:
-    try:
-        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-    except Exception:
-        return []
-
-    items: List[Dict[str, str]] = []
-    entries = root.findall(".//item") or root.findall(".//entry")
-
-    for entry in entries:
-        title = ""
-        link = ""
-        description = ""
-
-        for field in ["title", "link", "description", "summary", "content"]:
-            tag = entry.find(field)
-            if tag is not None and tag.text:
-                if field == "title":
-                    title = normalize_text(tag.text)
-                elif field == "link":
-                    link = normalize_text(tag.text)
-                elif field in {"description", "summary", "content"}:
-                    description = normalize_text(tag.text)
-
-        if not title:
-            continue
-
-        if not link:
-            link = source_url
-
-        if not is_valid_orientation_title(title, description):
-            continue
-
-        deadline = extract_deadline(f"{title} {description}")
-        category = "Master & Master Spécialisé" if "almaster-maroc" in source_url.lower() or "almaster" in source_name.lower() else detect_category(title, description)
-        items.append(
-            {
-                "title": title[:250],
-                "category": category,
-                "institution": "Almaster Maroc" if "almaster-maroc" in source_url.lower() or "almaster" in source_name.lower() else source_name,
-                "deadline": deadline,
-                "description": description[:500],
-                "apply_link": link,
-                "source_name": source_name,
-                "source_url": source_url,
-            }
-        )
-
-    return items
+def extract_title(soup: BeautifulSoup, fallback: str = "") -> str:
+    candidates = [
+        safe_meta(soup, "property='og:title'", "name='twitter:title'", "name='title'"),
+        soup.title.get_text(" ", strip=True) if soup.title and soup.title.get_text(" ", strip=True) else "",
+    ]
+    for candidate in candidates:
+        if candidate:
+            return candidate
+    for selector in ["h1", ".entry-title", ".post-title", "article h1", "main h1"]:
+        node = soup.select_one(selector)
+        text = sanitize_text(node.get_text(" ", strip=True)) if node else ""
+        if text:
+            return text
+    return fallback
 
 
-def fetch_article_details(article_url: str, article_title: str, source_name: str, source_url: str) -> Optional[Dict[str, str]]:
-    try:
-        article_response = requests.get(article_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
-        article_response.raise_for_status()
-    except Exception:
-        return None
+def extract_description(soup: BeautifulSoup) -> str:
+    desc = safe_meta(soup, "property='og:description'", "name='description'", "name='twitter:description'")
+    if desc:
+        return desc
+    for selector in ["article p", ".entry-content p", ".post-content p", "main p"]:
+        for node in soup.select(selector):
+            text = sanitize_text(node.get_text(" ", strip=True))
+            if len(text) > 30:
+                return text
+    return ""
 
-    article_soup = BeautifulSoup(article_response.text, "html.parser")
 
-    for tag in article_soup.select("nav, header, footer, .menu, .navigation, .wp-block-navigation, .main-navigation, script, style"):
-        tag.decompose()
+def extract_article_body(soup: BeautifulSoup) -> str:
+    article = soup.select_one("article") or soup.select_one("main") or soup
+    chunks: List[str] = []
+    for selector in ["p", "li", "h1", "h2", "h3", "h4", "div"]:
+        for node in article.select(selector):
+            text = sanitize_text(node.get_text(" ", strip=True))
+            if len(text) > 20:
+                chunks.append(text)
+    text = "\n".join(chunks)
+    if text:
+        return text[:6000]
+    return sanitize_text(soup.get_text(" ", strip=True))[:6000]
 
-    content_blocks = []
-    content_candidates = article_soup.select("article, main, .entry-content, .post-content, .content, .article-content, .single-post, .description")
-    if not content_candidates:
-        content_candidates = [article_soup]
 
-    for candidate in content_candidates:
-        for sel in ["p", "li", "h1", "h2", "h3", "h4", "div"]:
-            for node in candidate.select(sel):
-                text = normalize_text(node.get_text(" ", strip=True))
-                if text and len(text) > 20:
-                    content_blocks.append(text)
+def extract_dates_from_text(text: str) -> Dict[str, str]:
+    result: Dict[str, str] = {"publication_date": "", "updated_at": ""}
+    if not text:
+        return result
+    text_norm = normalize_text(text)
+    patterns = [
+        r"(?:publi(?:e|é)\s*le|published on|publish date|date de publication)\s*[:\-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:janvier|fevrier|février|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s+\d{4})",
+        r"(?:mise\s*à\s*jour|updated|modifi(?:e|é)\s*le|dernière mise à jour)\s*[:\-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:janvier|fevrier|février|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s+\d{4})",
+        r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:janvier|fevrier|février|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s+\d{4})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text_norm, flags=re.IGNORECASE)
+        if match:
+            candidate = match.group(1) if match.lastindex else match.group(0)
+            if not result["publication_date"]:
+                result["publication_date"] = candidate.strip()
+                break
+    return result
 
-    article_text = "\n".join(content_blocks)
-    if not article_text:
-        article_text = normalize_text(article_soup.get_text(" ", strip=True))
 
-    if not article_text:
-        return None
+def extract_deadline(text: str) -> str:
+    if not text:
+        return "Non spécifié"
+    text_norm = normalize_text(text)
+    patterns = [
+        r"(?:dernier\s*délai|dernier\s*delai|date\s*limite|clôture|cloture|candidatures\s*jusqu\'?au|jusqu\'?au|avant\s*le|au\s+plus\s+tard\s+le|deadline)\s*[:\-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:janvier|fevrier|février|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s+\d{4})",
+        r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:janvier|fevrier|février|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre)\s+\d{4})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text_norm, flags=re.IGNORECASE)
+        if match:
+            candidate = match.group(1) if match.lastindex else match.group(0)
+            return candidate.strip()
+    return "Non spécifié"
 
-    full_title = normalize_text(article_title) or title_from_element(article_soup)
-    if not full_title or not is_valid_orientation_title(full_title, article_text):
-        return None
 
-    if any(token in full_title.lower() for token in ["menu", "accueil", "contact", "home", "a propos", "about", "faq", "blog"]):
-        return None
+def extract_institution(text: str) -> str:
+    text_norm = normalize_text(text)
+    known = [
+        "ENSA", "ENSA Marrakech", "ENSEM", "INPT", "UM6P", "FSR", "FST", "ENCG", "ENSIAS",
+        "Université Mohammed VI", "Institut National", "Faculté des Sciences", "Ecole Nationale",
+        "École Nationale", "Université Hassan II", "Université Cadi Ayyad", "Université Ibn Tofail",
+        "Université de Marrakech", "Université Sidi Mohamed Ben Abdellah", "Université Abdelmalek Essaadi",
+        "École Supérieure", "Ecole Supérieure", "Centre d'Etudes", "Centre d'Études"
+    ]
+    for item in known:
+        if normalize_for_match(item) in normalize_for_match(text_norm):
+            return item
+    patterns = [
+        r"(?:École|Ecole|Institut|Université|Faculté|Faculte|Centre|Campus)\s+[A-Za-zÀ-ÿ0-9\- ]{2,}",
+        r"(?:ENSA|ENSAM|ENCG|FSR|FST|UM6P|INPT|ENSEM|ENSIAS)\s+[A-Za-zÀ-ÿ0-9\- ]{2,}",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text_norm, flags=re.IGNORECASE)
+        if match:
+            cleaned = sanitize_text(match.group(0))
+            if len(cleaned) < 150:
+                return cleaned
+    return "Université / établissement partenaire"
 
-    deadline = extract_deadline_from_text(f"{full_title} {article_text}")
-    institution = extract_institution_name(f"{full_title} {article_text}")
-    apply_link = find_official_application_link(article_text, article_url)
 
-    if "master" in full_title.lower():
-        category = "Master & Master Spécialisé"
-    elif "licence" in full_title.lower():
-        category = "Licence d'Excellence & Bachelor"
-    else:
-        category = detect_category(full_title, article_text)
+def extract_city(text: str) -> str:
+    cities = [
+        "Casablanca", "Rabat", "Marrakech", "Fès", "Fez", "Tanger", "Agadir", "Meknès", "Kenitra",
+        "Oujda", "Tétouan", "Tetouan", "Settat", "Khouribga", "Laayoune", "Dakhla", "Mohammedia"
+    ]
+    text_norm = normalize_text(text)
+    for city in cities:
+        if normalize_for_match(city) in normalize_for_match(text_norm):
+            return city
+    return ""
 
-    return {
-        "title": full_title[:250],
-        "category": category,
-        "institution": institution,
-        "deadline": deadline,
-        "description": article_text[:2000],
-        "apply_link": apply_link,
-        "source_name": source_name,
-        "source_url": source_url,
+
+def extract_country(text: str) -> str:
+    countries = [
+        "Maroc", "France", "Allemagne", "Espagne", "Italie", "Suisse", "Canada", "Royaume-Uni",
+        "UK", "USA", "États-Unis", "Belgique", "Pays-Bas", "Tunisie", "Algérie", "Mauritanie", "Sénégal"
+    ]
+    text_norm = normalize_text(text)
+    matches = [country for country in countries if normalize_for_match(country) in normalize_for_match(text_norm)]
+    return matches[0] if matches else "MA"
+
+
+def classify_academic_level(title: str, content: str, url: str = "") -> str:
+    text = normalize_for_match(f"{title} {content} {url}")
+    if any(token in text for token in ["bourse", "scholarship", "etudes a l etranger", "etudes a l’étranger", "study abroad", "mobilite internationale", "programme de bourse", "scholarship program", "financement des etudes"]):
+        return "bourses_etranger"
+    if any(token in text for token in ["bac+2", "bac +2", "deug", "deust", "deup", "dut", "bts", "diplome equivalent", "diplôme équivalent", "2 ans après le bac", "deux années après le bac"]):
+        return "bac+2"
+    if any(token in text for token in ["bac+3", "bac +3", "licence", "licence professionnelle", "licence pro", "bachelor", "diplome de licence", "diplôme de licence"]):
+        return "bac+3"
+    if any(token in text for token in ["cycle ingenieur", "cycle d ingenieur", "cycle d'ingénieur", "cycle ingénieur", "ingenieur d etat", "ingénieur d'état", "concours ingenieur", "ecole d ingenieurs", "école d'ingénieurs", "premiere annee cycle ingenieur", "première année cycle ingénieur", "deuxieme annee cycle ingenieur", "deuxième année cycle ingénieur"]):
+        if any(token in text for token in ["concours", "inscription", "admission", "candidature", "access", "preinscription", "préinscription"]):
+            return "ingenieur"
+    if any(token in text for token in ["baccalaureat", "baccalauréat", "bac 202", "apres bac", "après bac", "apres le bac", "après le bac", "concours apres bac", "concours d acces apres bac"]):
+        return "bac"
+    return "bac"
+
+
+def classify_announcement_type(title: str, content: str) -> str:
+    text = normalize_for_match(f"{title} {content}")
+    if any(token in text for token in ["resultat", "résultat", "resultats", "résultats"]):
+        return "resultats"
+    if "preselection" in text or "présélection" in text or "preselection" in text:
+        return "preselection"
+    if "preinscription" in text or "préinscription" in text:
+        return "preinscription"
+    if "inscription" in text:
+        return "inscription"
+    if "concours" in text:
+        return "concours"
+    if "bourse" in text or "scholarship" in text:
+        return "bourse"
+    if "candidature" in text or "postuler" in text or "admission" in text:
+        return "admission"
+    return "other"
+
+
+def is_likely_real_orientation_article(title: str, content: str, url: str) -> bool:
+    text = normalize_for_match(f"{title} {content} {url}")
+    if not text:
+        return False
+
+    parsed = urlparse(url)
+    path_segments = [seg for seg in parsed.path.strip("/").split("/") if seg]
+    generic_root_paths = {
+        "actualite", "actualites", "concours", "master", "licence-professionnelle",
+        "licence-d-excellence", "bourse", "emploi", "emploi-public", "formations",
+        "a-propos", "contact", "faq", "partenariat", "news", "blog"
     }
+    if len(path_segments) == 1 and path_segments[0].lower() in generic_root_paths:
+        return False
+
+    announcement_tokens = [
+        "concours", "inscription", "candidature", "admission", "licence", "bachelor",
+        "bts", "dut", "bourse", "cycle ingenieur", "preinscription", "preinscription",
+        "campus", "equipe", "ecole", "universite"
+    ]
+    generic_page_tokens = [
+        "contact", "faq", "a propos", "about", "blog", "emploi", "presse", "partenariat",
+        "news"
+    ]
+
+    if any(token in text for token in announcement_tokens):
+        return True
+
+    if any(token in text for token in generic_page_tokens):
+        return False
+
+    return False
 
 
-def parse_almaster_maroc_page(url: str, source_name: str, source_url: str) -> List[Dict[str, str]]:
-    try:
-        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-    except Exception:
-        return []
+def is_maybe_application_url(url: Optional[str]) -> bool:
+    normalized = normalize_url(url)
+    if not normalized:
+        return False
+    hostname = urlparse(normalized).hostname or ""
+    if not hostname:
+        return False
+    if "orientation-chabab" in hostname.lower():
+        return False
+    if any(hostname.lower().endswith(sfx) for sfx in ["facebook.com", "twitter.com", "x.com", "linkedin.com", "instagram.com", "youtube.com", "tiktok.com"]):
+        return False
+    if normalized.lower().endswith((".pdf", ".jpg", ".png", ".jpeg", ".gif", ".svg")):
+        return False
+    return True
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    items: List[Dict[str, str]] = []
-    seen = set()
 
-    article_links = []
+def extract_candidate_application_links(soup: BeautifulSoup, page_url: str) -> List[str]:
+    candidates: List[str] = []
+    seen: Set[str] = set()
     for anchor in soup.select("a[href]"):
         href = anchor.get("href")
         if not href:
             continue
-        text = normalize_text(anchor.get_text(" ", strip=True))
-        classes = anchor.get("class") or []
-        if is_navigation_or_menu_link(text, href, classes):
+        text = sanitize_text(anchor.get_text(" ", strip=True))
+        normalized_href = normalize_url(urljoin(page_url, href))
+        if not normalized_href or not is_maybe_application_url(normalized_href):
             continue
-        if any(token in text.lower() for token in ["menu", "accueil", "contact", "a propos", "about", "faq", "blog", "emploi", "stage", "partenariat"]):
-            continue
-        if len(text) < 8:
-            continue
-        link = to_absolute_url(url, href)
-        if not link.startswith("http"):
-            continue
-        if not is_valid_orientation_title(text, ""):
-            continue
-        if any(part in link.lower() for part in ["#", "javascript:", "tel:", "mailto:"]):
-            continue
-        article_links.append((text, link))
-
-    for title, link in article_links[:200]:
-        key = (title.lower(), link.lower())
-        if key in seen:
-            continue
-        seen.add(key)
-
-        article = fetch_article_details(link, title, source_name, source_url)
-        if article:
-            items.append(article)
-
-    if not items:
-        fallback_links = [
-            url,
-            "https://almaster-maroc.com/category/master/",
-            "https://almaster-maroc.com/category/licence/",
-        ]
-        for fallback_url in fallback_links:
-            try:
-                page = requests.get(fallback_url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
-                page.raise_for_status()
-            except Exception:
-                continue
-
-            fallback_soup = BeautifulSoup(page.text, "html.parser")
-            for anchor in fallback_soup.select("a[href]")[:200]:
-                href = anchor.get("href")
-                if not href:
-                    continue
-                text = normalize_text(anchor.get_text(" ", strip=True))
-                if not text or len(text) < 10:
-                    continue
-                if is_navigation_or_menu_link(text, href, anchor.get("class") or []):
-                    continue
-                if not is_valid_orientation_title(text, ""):
-                    continue
-                full_link = to_absolute_url(fallback_url, href)
-                item = fetch_article_details(full_link, text, source_name, source_url)
-                if item:
-                    items.append(item)
-
-    return items
+        lowered = normalize_for_match(f"{text} {normalized_href}")
+        if any(token in lowered for token in [
+            "inscription", "preinscription", "candidature", "postuler", "admission", "apply", "register", "signup", "portal",
+            "concours", "candidate", "recrutement", "demande", "selection", "submit"
+        ]):
+            if normalized_href not in seen:
+                seen.add(normalized_href)
+                candidates.append(normalized_href)
+    raw_links = re.findall(r"https?://[^\s\"'<>]+", soup.get_text(" ", strip=True))
+    for href in raw_links:
+        normalized = normalize_url(href)
+        if normalized and is_maybe_application_url(normalized) and normalized not in seen:
+            if any(token in normalize_for_match(href) for token in [
+                "inscription", "preinscription", "admission", "concours", "candidature", "apply", "register", "signup"
+            ]):
+                seen.add(normalized)
+                candidates.append(normalized)
+    return candidates
 
 
-def parse_page(url: str, source_name: str, source_url: str) -> List[Dict[str, str]]:
+def pick_best_apply_link(page_url: str, title: str, content: str, soup: BeautifulSoup) -> str:
+    candidates = extract_candidate_application_links(soup, page_url)
+    if not candidates:
+        return ""
+    text_blob = normalize_for_match(f"{title} {content}")
+    scored: List[Tuple[int, str]] = []
+    for candidate in candidates:
+        score = 0
+        host = (urlparse(candidate).hostname or "").lower()
+        if any(host.endswith(sfx) for sfx in [".ac.ma", ".edu", ".gov", ".ma"]):
+            score += 30
+        if any(token in normalize_for_match(candidate) for token in ["inscription", "preinscription", "candidature", "admission", "concours", "register", "apply"]):
+            score += 25
+        if any(token in text_blob for token in ["inscription", "preinscription", "concours", "admission", "candidature"]):
+            score += 10
+        if any(token in text_blob for token in ["deug", "dut", "bts", "licence", "ingénieur", "ingenieur", "bourse"]):
+            score += 5
+        scored.append((score, candidate))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1]
+
+
+def parse_orientation_article(url: str) -> Optional[Dict[str, Any]]:
     try:
-        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-    except Exception:
-        return []
-
-    if "almaster-maroc.com" in url.lower() or "almaster" in source_name.lower():
-        items = parse_almaster_maroc_page(url, source_name, source_url)
-        if items:
-            return items
-
-    content_type = (response.headers.get("Content-Type") or "").lower()
-    if "xml" in content_type or url.lower().endswith(".xml") or "rss" in url.lower():
-        items = parse_rss_feed(url, source_name, source_url)
-        if items:
-            return items
+        response = http_get(url)
+    except Exception as exc:
+        print(f"[ORIENTATION] Failed to fetch article {url}: {exc}")
+        return None
 
     soup = BeautifulSoup(response.text, "html.parser")
-    items: List[Dict[str, str]] = []
+    title = extract_title(soup, "")
+    description = extract_description(soup)
+    body = extract_article_body(soup)
+    text_blob = f"{title} {description} {body}"
+    if not title or not is_likely_real_orientation_article(title, body, url):
+        print(f"[ORIENTATION] Rejected article: {url}")
+        return None
 
-    containers = soup.select(
-        "article, li, .news-item, .announcement, .event, .card, .post, .item, .entry, .programme, .content-item, .listing-item, .result-item, .publication-item"
-    )
-
-    fallback_selectors = [
-        "div", "section", "main", "td", "tr"
-    ]
-    for selector in fallback_selectors:
-        if not containers:
-            containers = soup.select(selector)
-        else:
+    apply_link = pick_best_apply_link(url, title, body, soup)
+    institution = extract_institution(text_blob)
+    city = extract_city(text_blob)
+    country = extract_country(text_blob)
+    academic_level = classify_academic_level(title, body, url)
+    announcement_type = classify_announcement_type(title, body)
+    deadline = extract_deadline(text_blob)
+    publication_date = extract_dates_from_text(text_blob).get("publication_date", "")
+    updated_at = extract_dates_from_text(text_blob).get("updated_at", "")
+    image_url = safe_meta(soup, "property='og:image'", "name='twitter:image'", "itemprop='image'")
+    required_diploma = ""
+    if any(token in normalize_for_match(text_blob) for token in ["deug", "deust", "deup", "dut", "bts", "diplome"]):
+        required_diploma = "DEUG / DEUST / DEUP / DUT / BTS / diplôme équivalent"
+    elif any(token in normalize_for_match(text_blob) for token in ["licence", "bachelor"]):
+        required_diploma = "Licence / Bachelor / Bac+3"
+    elif any(token in normalize_for_match(text_blob) for token in ["baccalaureat", "bac"]):
+        required_diploma = "Baccalauréat / BAC"
+    eligibility = ""
+    for label in ["conditions d'accès", "conditions d admission", "conditions d'accès", "eligibilite", "éligibilité", "admission", "candidature"]:
+        if normalize_for_match(label) in normalize_for_match(text_blob):
+            eligibility = label
             break
+    study_field = ""
+    if any(token in normalize_for_match(text_blob) for token in ["informatique", "ia", "data", "finance", "gestion", "electrique", "mecanique", "electronique", "agronomie", "sante", "medecine"]):
+        match = re.search(r"(?:informatique|ia|data|finance|gestion|électronique|electrique|mécanique|mecanique|agronomie|santé|medecine|management)", normalize_for_match(text_blob), flags=re.IGNORECASE)
+        if match:
+            study_field = match.group(0)
 
-    if not containers:
-        containers = [soup]
-
-    seen = set()
-    for container in containers[:250]:
-        title = title_from_element(container)
-        if not title:
-            continue
-
-        final_title = normalize_text(title)
-        if len(final_title) < 10:
-            continue
-
-        description = description_from_element(container)
-        link = find_links_in_candidate(container, source_url) or url
-
-        if not is_valid_orientation_title(final_title, description):
-            continue
-
-        final_key = (final_title.lower(), link.lower())
-        if final_key in seen:
-            continue
-        seen.add(final_key)
-
-        deadline = extract_deadline(f"{final_title} {description}")
-        category = detect_category(final_title, description)
-
-        items.append(
-            {
-                "title": final_title[:250],
-                "category": category,
-                "institution": source_name,
-                "deadline": deadline,
-                "description": description[:500],
-                "apply_link": link,
-                "source_name": source_name,
-                "source_url": source_url,
-            }
-        )
-
-    return items
+    return {
+        "title": title[:250],
+        "description": (description[:2500] if description else body[:2500]),
+        "content": body[:6000],
+        "publication_date": publication_date,
+        "updated_at": updated_at,
+        "institution": institution,
+        "city": city,
+        "country": country,
+        "academic_level": academic_level,
+        "announcement_type": announcement_type,
+        "deadline": deadline,
+        "apply_link": apply_link,
+        "source_name": "Orientation Chabab",
+        "source_url": url,
+        "image_url": image_url,
+        "eligibility": eligibility,
+        "required_diploma": required_diploma,
+        "study_field": study_field,
+    }
 
 
-def insert_if_new(conn, item: Dict[str, str]) -> bool:
+def ensure_orientation_table(conn):
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS orientation_announcements (
+                    id SERIAL PRIMARY KEY,
+                    category TEXT,
+                    title TEXT NOT NULL,
+                    institution TEXT,
+                    deadline TEXT,
+                    description TEXT,
+                    apply_link TEXT,
+                    source_name TEXT,
+                    source_url TEXT,
+                    country TEXT DEFAULT 'MA',
+                    academic_level TEXT,
+                    announcement_type TEXT,
+                    publication_date TEXT,
+                    updated_at TEXT,
+                    city TEXT,
+                    eligibility TEXT,
+                    required_diploma TEXT,
+                    study_field TEXT,
+                    image_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (title, source_url)
+                );
+                """
+            )
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_academic_level ON orientation_announcements(academic_level);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_source_url ON orientation_announcements(source_url);")
+            conn.commit()
+    except Exception as exc:
+        print(f"[ORIENTATION] Table ensure failed: {exc}")
+
+
+def upsert_orientation_item(conn, item: Dict[str, Any]) -> str:
+    payload = {
+        "category": item.get("academic_level") or "bac",
+        "title": item["title"],
+        "institution": item.get("institution") or "Établissement partenaire",
+        "deadline": item.get("deadline") or "Non spécifié",
+        "description": item.get("description") or item.get("content") or "",
+        "apply_link": item.get("apply_link") or "",
+        "source_name": item.get("source_name") or "Orientation Chabab",
+        "source_url": item.get("source_url") or "",
+        "country": item.get("country") or "MA",
+        "academic_level": item.get("academic_level") or "bac",
+        "announcement_type": item.get("announcement_type") or "other",
+        "publication_date": item.get("publication_date") or "",
+        "updated_at": item.get("updated_at") or "",
+        "city": item.get("city") or "",
+        "eligibility": item.get("eligibility") or "",
+        "required_diploma": item.get("required_diploma") or "",
+        "study_field": item.get("study_field") or "",
+        "image_url": item.get("image_url") or "",
+    }
+
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT 1 FROM orientation_announcements
-            WHERE LOWER(title) = LOWER(%s)
-               OR LOWER(apply_link) = LOWER(%s)
-            LIMIT 1;
-            """,
-            (item["title"], item["apply_link"]),
-        )
-        existing = cur.fetchone()
-        if existing:
-            return False
-
-        cur.execute(
-            """
             INSERT INTO orientation_announcements (
-                category, title, institution, deadline, description, apply_link, source_name, source_url, country
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+                category, title, institution, deadline, description, apply_link, source_name, source_url,
+                country, academic_level, announcement_type, publication_date, updated_at, city,
+                eligibility, required_diploma, study_field, image_url
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (title, source_url) DO UPDATE SET
+                category = EXCLUDED.category,
+                institution = EXCLUDED.institution,
+                deadline = EXCLUDED.deadline,
+                description = EXCLUDED.description,
+                apply_link = EXCLUDED.apply_link,
+                source_name = EXCLUDED.source_name,
+                country = EXCLUDED.country,
+                academic_level = EXCLUDED.academic_level,
+                announcement_type = EXCLUDED.announcement_type,
+                publication_date = EXCLUDED.publication_date,
+                updated_at = EXCLUDED.updated_at,
+                city = EXCLUDED.city,
+                eligibility = EXCLUDED.eligibility,
+                required_diploma = EXCLUDED.required_diploma,
+                study_field = EXCLUDED.study_field,
+                image_url = EXCLUDED.image_url;
             """,
             (
-                item["category"],
-                item["title"],
-                item["institution"],
-                item["deadline"],
-                item["description"],
-                item["apply_link"],
-                item["source_name"],
-                item["source_url"],
-                "MA",
+                payload["category"],
+                payload["title"],
+                payload["institution"],
+                payload["deadline"],
+                payload["description"],
+                payload["apply_link"],
+                payload["source_name"],
+                payload["source_url"],
+                payload["country"],
+                payload["academic_level"],
+                payload["announcement_type"],
+                payload["publication_date"],
+                payload["updated_at"],
+                payload["city"],
+                payload["eligibility"],
+                payload["required_diploma"],
+                payload["study_field"],
+                payload["image_url"],
             ),
         )
         conn.commit()
-        return True
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM orientation_announcements WHERE LOWER(title) = LOWER(%s) AND LOWER(COALESCE(source_url, '')) = LOWER(%s)",
+            (payload["title"], payload["source_url"]),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return "DUPLICATE"
+        return "UPDATED" if row[0] else "INSERTED"
 
 
-def run_scraper():
+def run_orientation_scraper() -> Dict[str, int]:
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is missing. Set it in your environment before running the scraper.")
 
+    summary = {
+        "discovered": 0,
+        "processed": 0,
+        "inserted": 0,
+        "updated": 0,
+        "duplicates": 0,
+        "rejected": 0,
+        "failed": 0,
+    }
+
     conn = get_db_connection()
-    ensure_table(conn)
-    clear_orientation_announcements(conn)
+    ensure_orientation_table(conn)
+    discovered_urls = discover_orientation_urls()
+    summary["discovered"] = len(discovered_urls)
 
-    total_inserted = 0
-    total_seen = 0
-
-    for source in SOURCES:
-        url = source["url"]
-        source_name = source["name"]
-        print(f"-> Scraping {source_name}: {url}")
-
-        items = parse_page(url, source_name, url)
-        if not items:
-            print(f"No items found for {source_name}.")
+    for url in discovered_urls:
+        print(f"[ORIENTATION] Processing: {url}")
+        article = parse_orientation_article(url)
+        summary["processed"] += 1
+        if article is None:
+            summary["failed"] += 1
             continue
 
-        for item in items:
-            total_seen += 1
-            inserted = insert_if_new(conn, item)
-            if inserted:
-                total_inserted += 1
-                print(f"INSERTED -> {item['title'][:120]}")
-            else:
-                print(f"SKIP DUPLICATE -> {item['title'][:120]}")
+        if not is_likely_real_orientation_article(article["title"], article["content"], article["source_url"]):
+            summary["rejected"] += 1
+            print(f"[ORIENTATION] REJECTED: {article['title']}")
+            continue
 
-        time.sleep(1)
+        status = upsert_orientation_item(conn, article)
+        if status == "UPDATED":
+            summary["updated"] += 1
+            print(f"[ORIENTATION] UPDATED: {article['title']}")
+        elif status == "INSERTED":
+            summary["inserted"] += 1
+            print(f"[ORIENTATION] INSERTED: {article['title']}")
+        else:
+            summary["duplicates"] += 1
+            print(f"[ORIENTATION] DUPLICATE: {article['title']}")
 
-    if total_inserted == 0:
-        print("-> No valid live items found from the current sources. Inserting fallback Moroccan orientation announcements.")
-        for item in FALLBACK_ANNOUNCEMENTS:
-            item_payload = {
-                "title": item["title"],
-                "category": item["category"],
-                "institution": item["institution"],
-                "deadline": item["deadline"],
-                "description": item["description"],
-                "apply_link": item["apply_link"],
-                "source_name": "Fallback seed",
-                "source_url": item["apply_link"],
-            }
-            if is_valid_orientation_title(item_payload["title"], item_payload["description"]):
-                inserted = insert_if_new(conn, item_payload)
-                if inserted:
-                    total_inserted += 1
-                    print(f"FALLBACK INSERTED -> {item_payload['title'][:120]}")
+        time.sleep(REQUEST_DELAY_SECONDS)
 
     conn.close()
-    print(f"\nCompleted. Inserted: {total_inserted}. Checked: {total_seen}.")
-    return total_inserted
+    print("[ORIENTATION] SUMMARY")
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return summary
+
+
+def run_scraper():
+    return run_orientation_scraper()
 
 
 if __name__ == "__main__":
-    print("Starting Moroccan orientation scraper...")
-    run_scraper()
+    print("[ORIENTATION] Starting Orientation Chabab scraper...")
+    run_orientation_scraper()
