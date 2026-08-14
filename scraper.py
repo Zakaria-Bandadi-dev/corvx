@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse, urlsplit, urlunsplit
 import xml.etree.ElementTree as ET
@@ -65,7 +66,9 @@ def normalize_url(raw_url: Optional[str]) -> Optional[str]:
     if scheme not in {"http", "https"}:
         return None
     cleaned = urlunsplit((scheme, parsed.netloc, parsed.path, "", ""))
-    return cleaned.rstrip("/") or cleaned
+    if cleaned and cleaned != "/":
+        return cleaned
+    return cleaned or "https://" + parsed.netloc
 
 
 def normalize_for_match(value: Optional[str]) -> str:
@@ -214,6 +217,51 @@ def extract_article_body(soup: BeautifulSoup) -> str:
     return sanitize_text(soup.get_text(" ", strip=True))[:6000]
 
 
+def parse_publication_date(raw_date: Optional[str]) -> Optional[datetime]:
+    if raw_date is None:
+        return None
+
+    value = sanitize_text(raw_date)
+    if not value:
+        return None
+
+    text = value.lower().strip()
+    if text in {"non spécifié", "non specifie", "unknown", "n/a", "na"}:
+        return None
+
+    normalized = text
+    month_map = {
+        "janvier": "january", "fevrier": "february", "février": "february", "mars": "march",
+        "avril": "april", "mai": "may", "juin": "june", "juillet": "july",
+        "aout": "august", "août": "august", "septembre": "september", "octobre": "october",
+        "novembre": "november", "décembre": "december", "decembre": "december",
+    }
+    for month_fr, month_en in month_map.items():
+        normalized = normalized.replace(month_fr, month_en)
+
+    formats = [
+        "%d %B %Y", "%d %b %Y", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+        "%Y-%m-%d", "%d/%m/%y", "%d-%m-%y", "%d.%m.%y",
+        "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y",
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(normalized, fmt)
+        except ValueError:
+            pass
+
+    # Fallback for French textual dates when the month translation is not enough.
+    try:
+        return datetime.strptime(normalized, "%d %B %Y")
+    except ValueError:
+        return None
+
+
+def should_accept_publication_date(raw_date: Optional[str]) -> bool:
+    parsed = parse_publication_date(raw_date)
+    return parsed is not None and parsed.year == 2026
+
+
 def extract_dates_from_text(text: str) -> Dict[str, str]:
     result: Dict[str, str] = {"publication_date": "", "updated_at": ""}
     if not text:
@@ -313,6 +361,10 @@ def classify_academic_level(title: str, content: str, url: str = "") -> str:
     return "bac"
 
 
+def classify_announcement(title: str, content: str, url: str = "", institution: str = "") -> str:
+    return classify_academic_level(title, content, url)
+
+
 def classify_announcement_type(title: str, content: str) -> str:
     text = normalize_for_match(f"{title} {content}")
     if any(token in text for token in ["resultat", "résultat", "resultats", "résultats"]):
@@ -330,6 +382,17 @@ def classify_announcement_type(title: str, content: str) -> str:
     if "candidature" in text or "postuler" in text or "admission" in text:
         return "admission"
     return "other"
+
+
+def detect_announcement_type(title: str, content: str) -> str:
+    return classify_announcement_type(title, content)
+
+
+def find_best_apply_link(html: str, page_url: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+    title = extract_title(soup, "")
+    body = extract_article_body(soup)
+    return pick_best_apply_link(page_url, title, body, soup)
 
 
 def is_likely_real_orientation_article(title: str, content: str, url: str) -> bool:
@@ -458,8 +521,12 @@ def parse_orientation_article(url: str) -> Optional[Dict[str, Any]]:
     academic_level = classify_academic_level(title, body, url)
     announcement_type = classify_announcement_type(title, body)
     deadline = extract_deadline(text_blob)
-    publication_date = extract_dates_from_text(text_blob).get("publication_date", "")
+    publication_date_raw = extract_dates_from_text(text_blob).get("publication_date", "")
     updated_at = extract_dates_from_text(text_blob).get("updated_at", "")
+    if not should_accept_publication_date(publication_date_raw):
+        print(f"[ORIENTATION] Rejected article with non-2026 publication date: {url} -> {publication_date_raw or 'missing'}")
+        return None
+    publication_date = publication_date_raw
     image_url = safe_meta(soup, "property='og:image'", "name='twitter:image'", "itemprop='image'")
     required_diploma = ""
     if any(token in normalize_for_match(text_blob) for token in ["deug", "deust", "deup", "dut", "bts", "diplome"]):

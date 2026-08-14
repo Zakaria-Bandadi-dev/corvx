@@ -59,11 +59,12 @@ def fetch_orientation_items(category="all"):
             source_name, source_url, country, academic_level, announcement_type,
             publication_date, city, eligibility, required_diploma, study_field, image_url
         FROM orientation_announcements
+        WHERE publication_date ILIKE '%2026%'
     """
     params = []
 
     if category and category != "all":
-        query += " WHERE LOWER(category) = LOWER(%s)"
+        query += " AND LOWER(category) = LOWER(%s)"
         params.append(category)
 
     query += " ORDER BY created_at DESC"

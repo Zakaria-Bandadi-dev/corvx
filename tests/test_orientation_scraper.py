@@ -1,4 +1,10 @@
-from scraper import classify_announcement, detect_announcement_type, find_best_apply_link
+from scraper import classify_announcement, detect_announcement_type, find_best_apply_link, should_accept_publication_date
+
+
+def test_should_accept_publication_date_only_for_2026():
+    assert should_accept_publication_date("15 janvier 2026") is True
+    assert should_accept_publication_date("12/03/2025") is False
+    assert should_accept_publication_date("") is False
 
 
 def test_classify_announcement_detects_bac_plus_two_from_eligibility():
