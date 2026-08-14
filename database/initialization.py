@@ -137,6 +137,7 @@ def init_db():
                 f"ALTER TABLE orientation_announcements ADD COLUMN IF NOT EXISTS {column} {column_type};"
             )
 
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_orientation_title_source_url ON orientation_announcements(title, source_url);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_academic_level ON orientation_announcements(academic_level);")

@@ -555,6 +555,7 @@ def ensure_orientation_table(conn):
             for field, field_type in orientation_columns.items():
                 cur.execute(f"ALTER TABLE orientation_announcements ADD COLUMN IF NOT EXISTS {field} {field_type};")
 
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_orientation_title_source_url ON orientation_announcements(title, source_url);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_category ON orientation_announcements(category);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_deadline ON orientation_announcements(deadline);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_orientation_academic_level ON orientation_announcements(academic_level);")
