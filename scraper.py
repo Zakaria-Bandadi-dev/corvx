@@ -562,54 +562,62 @@ def upsert_orientation_item(conn, item: Dict[str, Any]) -> str:
         "image_url": item.get("image_url") or "",
     }
 
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO orientation_announcements (
-                category, title, institution, deadline, description, apply_link, source_name, source_url,
-                country, academic_level, announcement_type, publication_date, updated_at, city,
-                eligibility, required_diploma, study_field, image_url
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (title, source_url) DO UPDATE SET
-                category = EXCLUDED.category,
-                institution = EXCLUDED.institution,
-                deadline = EXCLUDED.deadline,
-                description = EXCLUDED.description,
-                apply_link = EXCLUDED.apply_link,
-                source_name = EXCLUDED.source_name,
-                country = EXCLUDED.country,
-                academic_level = EXCLUDED.academic_level,
-                announcement_type = EXCLUDED.announcement_type,
-                publication_date = EXCLUDED.publication_date,
-                updated_at = EXCLUDED.updated_at,
-                city = EXCLUDED.city,
-                eligibility = EXCLUDED.eligibility,
-                required_diploma = EXCLUDED.required_diploma,
-                study_field = EXCLUDED.study_field,
-                image_url = EXCLUDED.image_url;
-            """,
-            (
-                payload["category"],
-                payload["title"],
-                payload["institution"],
-                payload["deadline"],
-                payload["description"],
-                payload["apply_link"],
-                payload["source_name"],
-                payload["source_url"],
-                payload["country"],
-                payload["academic_level"],
-                payload["announcement_type"],
-                payload["publication_date"],
-                payload["updated_at"],
-                payload["city"],
-                payload["eligibility"],
-                payload["required_diploma"],
-                payload["study_field"],
-                payload["image_url"],
-            ),
-        )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO orientation_announcements (
+                    category, title, institution, deadline, description, apply_link, source_name, source_url,
+                    country, academic_level, announcement_type, publication_date, updated_at, city,
+                    eligibility, required_diploma, study_field, image_url
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (title, source_url) DO UPDATE SET
+                    category = EXCLUDED.category,
+                    institution = EXCLUDED.institution,
+                    deadline = EXCLUDED.deadline,
+                    description = EXCLUDED.description,
+                    apply_link = EXCLUDED.apply_link,
+                    source_name = EXCLUDED.source_name,
+                    country = EXCLUDED.country,
+                    academic_level = EXCLUDED.academic_level,
+                    announcement_type = EXCLUDED.announcement_type,
+                    publication_date = EXCLUDED.publication_date,
+                    updated_at = EXCLUDED.updated_at,
+                    city = EXCLUDED.city,
+                    eligibility = EXCLUDED.eligibility,
+                    required_diploma = EXCLUDED.required_diploma,
+                    study_field = EXCLUDED.study_field,
+                    image_url = EXCLUDED.image_url;
+                """,
+                (
+                    payload["category"],
+                    payload["title"],
+                    payload["institution"],
+                    payload["deadline"],
+                    payload["description"],
+                    payload["apply_link"],
+                    payload["source_name"],
+                    payload["source_url"],
+                    payload["country"],
+                    payload["academic_level"],
+                    payload["announcement_type"],
+                    payload["publication_date"],
+                    payload["updated_at"],
+                    payload["city"],
+                    payload["eligibility"],
+                    payload["required_diploma"],
+                    payload["study_field"],
+                    payload["image_url"],
+                ),
+            )
         conn.commit()
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print(f"[ORIENTATION] Upsert failed for {payload['title']}: {exc}")
+        return "FAILED"
 
     with conn.cursor() as cur:
         cur.execute(
@@ -661,6 +669,9 @@ def run_orientation_scraper() -> Dict[str, int]:
         elif status == "INSERTED":
             summary["inserted"] += 1
             print(f"[ORIENTATION] INSERTED: {article['title']}")
+        elif status == "FAILED":
+            summary["failed"] += 1
+            print(f"[ORIENTATION] FAILED: {article['title']}")
         else:
             summary["duplicates"] += 1
             print(f"[ORIENTATION] DUPLICATE: {article['title']}")
