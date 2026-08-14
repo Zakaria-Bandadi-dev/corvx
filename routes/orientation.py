@@ -59,7 +59,9 @@ def fetch_orientation_items(category="all"):
             source_name, source_url, country, academic_level, announcement_type,
             publication_date, city, eligibility, required_diploma, study_field, image_url
         FROM orientation_announcements
-        WHERE publication_date ILIKE '%2026%'
+        WHERE publication_date IS NOT NULL
+          AND publication_date != ''
+          AND publication_date ILIKE '%2026%'
     """
     params = []
 
@@ -118,6 +120,9 @@ def fetch_orientation_item_by_id(item_id):
             publication_date, city, eligibility, required_diploma, study_field, image_url
         FROM orientation_announcements
         WHERE id = %s
+          AND publication_date IS NOT NULL
+          AND publication_date != ''
+          AND publication_date ILIKE '%2026%'
         LIMIT 1
     """
 

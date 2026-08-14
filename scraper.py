@@ -738,6 +738,11 @@ def run_orientation_scraper() -> Dict[str, int]:
 
     conn = get_db_connection()
     ensure_orientation_table(conn)
+
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM orientation_announcements WHERE publication_date IS NULL OR publication_date = '' OR publication_date NOT ILIKE '%2026%'")
+    conn.commit()
+
     discovered_urls = discover_orientation_urls()
     summary["discovered"] = len(discovered_urls)
 
