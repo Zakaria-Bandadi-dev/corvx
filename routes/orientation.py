@@ -59,54 +59,50 @@ def fetch_orientation_items(category="all"):
             source_name, source_url, country, academic_level, announcement_type,
             publication_date, city, eligibility, required_diploma, study_field, image_url
         FROM orientation_announcements
-        WHERE publication_date IS NOT NULL
-          AND publication_date != ''
-          AND publication_date ILIKE '%2026%'
+        ORDER BY created_at DESC
     """
     params = []
 
-    if category and category != "all":
-        query += " AND LOWER(category) = LOWER(%s)"
-        params.append(category)
-
-    query += " ORDER BY created_at DESC"
-
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            rows = cur.fetchall()
-            items = []
-            for row in rows:
-                (
-                    item_id, db_category, title, institution, deadline, description, apply_link,
-                    source_name, source_url, country, academic_level, announcement_type,
-                    publication_date, city, eligibility, required_diploma, study_field, image_url,
-                ) = row
-                items.append(
-                    {
-                        "id": item_id,
-                        "category": normalize_category_key(db_category),
-                        "title": title or "Annonce",
-                        "institution": institution or "Institution",
-                        "deadline": deadline or "Aucun délai",
-                        "description": description or "",
-                        "cta": "Voir plus",
-                        "apply_link": apply_link or "",
-                        "source_name": source_name or "Orientation Chabab",
-                        "source_url": source_url or "",
-                        "country": country or "MA",
-                        "academic_level": academic_level or "bac",
-                        "announcement_type": announcement_type or "other",
-                        "publication_date": publication_date or "",
-                        "city": city or "",
-                        "eligibility": eligibility or "",
-                        "required_diploma": required_diploma or "",
-                        "study_field": study_field or "",
-                        "image_url": image_url or "",
-                    }
-                )
-            return items
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                items = []
+                for row in rows:
+                    (
+                        item_id, db_category, title, institution, deadline, description, apply_link,
+                        source_name, source_url, country, academic_level, announcement_type,
+                        publication_date, city, eligibility, required_diploma, study_field, image_url,
+                    ) = row
+                    normalized_category = normalize_category_key(db_category)
+                    if category and category != "all" and normalized_category != category:
+                        continue
+
+                    items.append(
+                        {
+                            "id": item_id,
+                            "category": normalized_category,
+                            "title": title or "Annonce",
+                            "institution": institution or "Institution",
+                            "deadline": deadline or "Aucun délai",
+                            "description": description or "",
+                            "cta": "Voir plus",
+                            "apply_link": apply_link or "",
+                            "source_name": source_name or "Orientation Chabab",
+                            "source_url": source_url or "",
+                            "country": country or "MA",
+                            "academic_level": academic_level or "bac",
+                            "announcement_type": announcement_type or "other",
+                            "publication_date": publication_date or "",
+                            "city": city or "",
+                            "eligibility": eligibility or "",
+                            "required_diploma": required_diploma or "",
+                            "study_field": study_field or "",
+                            "image_url": image_url or "",
+                        }
+                    )
+                return items
     except Exception as exc:
         print(f"!! Orientation database query failed: {exc}")
         return []
@@ -120,46 +116,43 @@ def fetch_orientation_item_by_id(item_id):
             publication_date, city, eligibility, required_diploma, study_field, image_url
         FROM orientation_announcements
         WHERE id = %s
-          AND publication_date IS NOT NULL
-          AND publication_date != ''
-          AND publication_date ILIKE '%2026%'
         LIMIT 1
     """
 
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute(query, (item_id,))
-            row = cur.fetchone()
-            if not row:
-                return None
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (item_id,))
+                row = cur.fetchone()
+                if not row:
+                    return None
 
-            (
-                item_id, db_category, title, institution, deadline, description, apply_link,
-                source_name, source_url, country, academic_level, announcement_type,
-                publication_date, city, eligibility, required_diploma, study_field, image_url,
-            ) = row
-            return {
-                "id": item_id,
-                "category": normalize_category_key(db_category),
-                "title": title or "Annonce",
-                "institution": institution or "Institution",
-                "deadline": deadline or "Aucun délai",
-                "description": description or "",
-                "cta": "Postuler",
-                "apply_link": apply_link or "",
-                "source_name": source_name or "Orientation Chabab",
-                "source_url": source_url or "",
-                "country": country or "MA",
-                "academic_level": academic_level or "bac",
-                "announcement_type": announcement_type or "other",
-                "publication_date": publication_date or "",
-                "city": city or "",
-                "eligibility": eligibility or "",
-                "required_diploma": required_diploma or "",
-                "study_field": study_field or "",
-                "image_url": image_url or "",
-            }
+                (
+                    item_id, db_category, title, institution, deadline, description, apply_link,
+                    source_name, source_url, country, academic_level, announcement_type,
+                    publication_date, city, eligibility, required_diploma, study_field, image_url,
+                ) = row
+                return {
+                    "id": item_id,
+                    "category": normalize_category_key(db_category),
+                    "title": title or "Annonce",
+                    "institution": institution or "Institution",
+                    "deadline": deadline or "Aucun délai",
+                    "description": description or "",
+                    "cta": "Postuler",
+                    "apply_link": apply_link or "",
+                    "source_name": source_name or "Orientation Chabab",
+                    "source_url": source_url or "",
+                    "country": country or "MA",
+                    "academic_level": academic_level or "bac",
+                    "announcement_type": announcement_type or "other",
+                    "publication_date": publication_date or "",
+                    "city": city or "",
+                    "eligibility": eligibility or "",
+                    "required_diploma": required_diploma or "",
+                    "study_field": study_field or "",
+                    "image_url": image_url or "",
+                }
     except Exception as exc:
         print(f"!! Orientation detail query failed: {exc}")
         return None
